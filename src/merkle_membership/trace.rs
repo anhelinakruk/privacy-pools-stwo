@@ -1,0 +1,169 @@
+use stwo::core::fields::m31::BaseField;
+use stwo::core::poly::circle::CanonicCoset;
+use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
+use stwo::prover::backend::simd::SimdBackend;
+use stwo::prover::backend::{Col, Column};
+use stwo::prover::poly::circle::CircleEvaluation;
+use stwo::prover::poly::BitReversedOrder;
+
+use crate::poseidon_hash::{
+    apply_external_round_matrix, apply_internal_round_matrix, pow5, EXTERNAL_ROUND_CONSTS,
+    INTERNAL_ROUND_CONSTS, N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
+};
+
+use super::types::MerkleInputs;
+
+pub type ColumnVec<T> = Vec<T>;
+
+pub fn gen_merkle_trace(
+    log_size: u32,
+    inputs: &MerkleInputs,
+) -> (
+    ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
+    BaseField,
+) {
+    let depth = inputs.depth();
+    let n_rows = 1 << log_size;
+    assert!(
+        depth <= n_rows,
+        "Tree depth {} exceeds trace size {}",
+        depth,
+        n_rows
+    );
+
+    // 174 columns: 16 + 64 + 14 + 64 + 16
+    const N_COLUMNS: usize =
+        N_STATE + (N_HALF_FULL_ROUNDS * N_STATE) + N_PARTIAL_ROUNDS + (N_HALF_FULL_ROUNDS * N_STATE) + N_STATE;
+
+    let mut trace = (0..N_COLUMNS)
+        .map(|_| Col::<SimdBackend, BaseField>::zeros(n_rows))
+        .collect::<Vec<_>>();
+
+    let mut current_node = inputs.leaf;
+    let mut computed_root = BaseField::from_u32_unchecked(0);
+
+    for row in 0..n_rows {
+        let is_active_row = row < depth;
+
+        if !is_active_row {
+            // Padding row: all zeros
+            for col in trace.iter_mut() {
+                col.set(row, BaseField::from_u32_unchecked(0));
+            }
+        } else {
+            // Active row: compute one level of the Merkle path
+            let level = row;
+            let index_bit = (inputs.index >> level) & 1;
+            let sibling = inputs.siblings[level];
+
+            // Determine left and right children based on index bit
+            let (left_child, right_child) = if index_bit == 0 {
+                (current_node, sibling)
+            } else {
+                (sibling, current_node)
+            };
+
+            // Fill the row with Poseidon2 permutation
+            let hash_result =
+                fill_merkle_row(&mut trace, row, left_child, right_child);
+
+            current_node = hash_result;
+
+            // Save computed root from the last active row
+            if row == depth - 1 {
+                computed_root = hash_result;
+            }
+        }
+    }
+
+    for col in trace.iter_mut() {
+        bit_reverse_coset_to_circle_domain_order(col.as_mut_slice());
+    }
+
+    let domain = CanonicCoset::new(log_size).circle_domain();
+    let trace_evals = trace
+        .into_iter()
+        .map(|eval| CircleEvaluation::new(domain, eval))
+        .collect();
+
+    (trace_evals, computed_root)
+}
+
+fn fill_merkle_row(
+    trace: &mut [Col::<SimdBackend, BaseField>],
+    row: usize,
+    left: BaseField,
+    right: BaseField,
+) -> BaseField {
+    let mut col_index = 0;
+
+    // Initialize state: [left, right, 0, 0, ..., 0]
+    let mut state = [BaseField::from_u32_unchecked(0); N_STATE];
+    state[0] = left;
+    state[1] = right;
+
+    // Write initial_state (16 columns)
+    for i in 0..N_STATE {
+        trace[col_index].set(row, state[i]);
+        col_index += 1;
+    }
+
+    // First 4 full rounds
+    for round in 0..N_HALF_FULL_ROUNDS {
+        // Add round constants
+        for i in 0..N_STATE {
+            state[i] = state[i] + EXTERNAL_ROUND_CONSTS[round][i];
+        }
+        // Apply external matrix
+        apply_external_round_matrix(&mut state);
+        // Apply S-box (x^5)
+        state = std::array::from_fn(|i| pow5(state[i]));
+
+        // Write intermediate state (16 columns)
+        for i in 0..N_STATE {
+            trace[col_index].set(row, state[i]);
+            col_index += 1;
+        }
+    }
+
+    // 14 partial rounds
+    for round in 0..N_PARTIAL_ROUNDS {
+        // Add round constant to first element
+        state[0] = state[0] + INTERNAL_ROUND_CONSTS[round];
+        // Apply internal matrix
+        apply_internal_round_matrix(&mut state);
+        // Apply S-box only to first element
+        state[0] = pow5(state[0]);
+
+        // Write intermediate state (1 column)
+        trace[col_index].set(row, state[0]);
+        col_index += 1;
+    }
+
+    // Last 4 full rounds
+    for round in 0..N_HALF_FULL_ROUNDS {
+        // Add round constants
+        for i in 0..N_STATE {
+            state[i] = state[i] + EXTERNAL_ROUND_CONSTS[round + N_HALF_FULL_ROUNDS][i];
+        }
+        // Apply external matrix
+        apply_external_round_matrix(&mut state);
+        // Apply S-box (x^5)
+        state = std::array::from_fn(|i| pow5(state[i]));
+
+        // Write intermediate state (16 columns)
+        for i in 0..N_STATE {
+            trace[col_index].set(row, state[i]);
+            col_index += 1;
+        }
+    }
+
+    // Write final_state (16 columns)
+    for i in 0..N_STATE {
+        trace[col_index].set(row, state[i]);
+        col_index += 1;
+    }
+
+    // Return hash output (first element of final state)
+    state[0]
+}

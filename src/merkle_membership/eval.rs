@@ -1,0 +1,246 @@
+use stwo::core::fields::m31::BaseField;
+use stwo::core::poly::circle::CanonicCoset;
+use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
+use stwo::prover::backend::simd::SimdBackend;
+use stwo::prover::backend::{Col, Column};
+use stwo::prover::poly::circle::CircleEvaluation;
+use stwo::prover::poly::BitReversedOrder;
+use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
+use stwo_constraint_framework::{EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry, ORIGINAL_TRACE_IDX};
+use num_traits::One;
+
+use crate::poseidon_hash::{
+    apply_external_round_matrix, apply_internal_round_matrix, pow5_expr,
+    EXTERNAL_ROUND_CONSTS, INTERNAL_ROUND_CONSTS,
+    N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
+};
+
+#[derive(Clone)]
+pub struct MerkleMembershipEval {
+    pub log_n_rows: u32,
+    pub depth: usize,
+    pub is_active_id: PreProcessedColumnId,
+    pub is_step_id: PreProcessedColumnId,
+    pub is_first_id: PreProcessedColumnId,
+    pub is_last_id: PreProcessedColumnId,
+    pub leaf_relation: crate::relations::LeafRelation,
+    pub root_relation: crate::relations::RootRelation,
+    pub claimed_sum: stwo::core::fields::qm31::SecureField,
+}
+
+impl FrameworkEval for MerkleMembershipEval {
+    fn log_size(&self) -> u32 {
+        self.log_n_rows
+    }
+
+    fn max_constraint_log_degree_bound(&self) -> u32 {
+        self.log_n_rows + 3 // LOG_EXPAND
+    }
+
+    fn evaluate<E: EvalAtRow>(&self, mut eval: E) -> E {
+        let is_active_val = eval.get_preprocessed_column(self.is_active_id.clone());
+        let is_step_val = eval.get_preprocessed_column(self.is_step_id.clone());
+        let is_first_val = eval.get_preprocessed_column(self.is_first_id.clone());
+        let is_last_val = eval.get_preprocessed_column(self.is_last_id.clone());
+
+        // Read initial state (16 elements) from current row
+        // For chaining, we need the first element from BOTH current and next row
+        // So we read col 0 with offsets [0, 1] in ONE call (like Fibonacci does!)
+        let [initial_state_first_curr, initial_state_first_next] =
+            eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0, 1]);
+
+        // Read the rest of initial_state (cols 1-15) normally with offset [0]
+        let initial_state: [E::F; N_STATE] = std::array::from_fn(|i| {
+            if i == 0 {
+                initial_state_first_curr.clone()
+            } else {
+                eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone()
+            }
+        });
+
+        // Constraint: state[2..16] must be zero (capacity) - masked by is_active
+        for i in 2..N_STATE {
+            eval.add_constraint(is_active_val.clone() * initial_state[i].clone());
+        }
+
+        // Read intermediate states
+        let intermediate_full1: [[E::F; N_STATE]; N_HALF_FULL_ROUNDS] = std::array::from_fn(|_| {
+            std::array::from_fn(|_| eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone())
+        });
+
+        let intermediate_partial: [E::F; N_PARTIAL_ROUNDS] =
+            std::array::from_fn(|_| eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone());
+
+        let intermediate_full2: [[E::F; N_STATE]; N_HALF_FULL_ROUNDS] = std::array::from_fn(|_| {
+            std::array::from_fn(|_| eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone())
+        });
+
+        let final_state: [E::F; N_STATE] =
+            std::array::from_fn(|_| eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone());
+
+        // Poseidon2 permutation constraints
+        let mut state = initial_state.clone();
+
+        // First 4 full rounds
+        for round in 0..N_HALF_FULL_ROUNDS {
+            for i in 0..N_STATE {
+                state[i] = state[i].clone() + E::F::from(EXTERNAL_ROUND_CONSTS[round][i]);
+            }
+            apply_external_round_matrix(&mut state);
+            state = std::array::from_fn(|i| pow5_expr(state[i].clone()));
+
+            for i in 0..N_STATE {
+                eval.add_constraint(
+                    is_active_val.clone()
+                        * (state[i].clone() - intermediate_full1[round][i].clone()),
+                );
+            }
+            state = intermediate_full1[round].clone();
+        }
+
+        // 14 partial rounds
+        for round in 0..N_PARTIAL_ROUNDS {
+            state[0] = state[0].clone() + E::F::from(INTERNAL_ROUND_CONSTS[round]);
+            apply_internal_round_matrix(&mut state);
+            state[0] = pow5_expr(state[0].clone());
+
+            eval.add_constraint(
+                is_active_val.clone() * (state[0].clone() - intermediate_partial[round].clone()),
+            );
+            state[0] = intermediate_partial[round].clone();
+        }
+
+        // Last 4 full rounds
+        for round in 0..N_HALF_FULL_ROUNDS {
+            for i in 0..N_STATE {
+                state[i] = state[i].clone() + E::F::from(EXTERNAL_ROUND_CONSTS[round + N_HALF_FULL_ROUNDS][i]);
+            }
+            apply_external_round_matrix(&mut state);
+            state = std::array::from_fn(|i| pow5_expr(state[i].clone()));
+
+            for i in 0..N_STATE {
+                eval.add_constraint(
+                    is_active_val.clone()
+                        * (state[i].clone() - intermediate_full2[round][i].clone()),
+                );
+            }
+            state = intermediate_full2[round].clone();
+        }
+
+        // Final state consistency - masked by is_active
+        for i in 0..N_STATE {
+            eval.add_constraint(
+                is_active_val.clone() * (final_state[i].clone() - state[i].clone()),
+            );
+        }
+
+        eval.add_constraint(
+            is_step_val * (final_state[0].clone() - initial_state_first_next)
+        );
+
+        let leaf_value = initial_state[0].clone();
+        eval.add_to_relation(RelationEntry::new(
+            &self.leaf_relation,
+            (-is_first_val.clone()).into(),
+            &[leaf_value],                
+        ));
+
+        let root_value = final_state[0].clone();
+        eval.add_to_relation(RelationEntry::new(
+            &self.root_relation,
+            is_last_val.into(), 
+            &[root_value], 
+        ));
+
+        eval.finalize_logup_in_pairs();
+
+        eval
+    }
+}
+
+pub type MerkleMembershipComponent = FrameworkComponent<MerkleMembershipEval>;
+
+pub fn gen_merkle_is_active_column(
+    log_size: u32,
+    depth: usize,
+) -> CircleEvaluation<SimdBackend, BaseField, BitReversedOrder> {
+    let n_rows = 1 << log_size;
+    let mut col = Col::<SimdBackend, BaseField>::zeros(n_rows);
+
+    for row in 0..depth.min(n_rows) {
+        col.set(row, BaseField::one());
+    }
+
+    bit_reverse_coset_to_circle_domain_order(col.as_mut_slice());
+    CircleEvaluation::new(CanonicCoset::new(log_size).circle_domain(), col)
+}
+
+pub fn gen_merkle_is_step_column(
+    log_size: u32,
+    depth: usize,
+) -> CircleEvaluation<SimdBackend, BaseField, BitReversedOrder> {
+    let n_rows = 1 << log_size;
+    let mut col = Col::<SimdBackend, BaseField>::zeros(n_rows);
+
+    for row in 0..(depth.saturating_sub(1)).min(n_rows) {
+        col.set(row, BaseField::one());
+    }
+
+    bit_reverse_coset_to_circle_domain_order(col.as_mut_slice());
+    CircleEvaluation::new(CanonicCoset::new(log_size).circle_domain(), col)
+}
+
+pub fn merkle_is_active_column_id(log_size: u32, depth: usize) -> PreProcessedColumnId {
+    PreProcessedColumnId {
+        id: format!("merkle_is_active_{}_{}", log_size, depth),
+    }
+}
+
+pub fn merkle_is_step_column_id(log_size: u32, depth: usize) -> PreProcessedColumnId {
+    PreProcessedColumnId {
+        id: format!("merkle_is_step_{}_{}", log_size, depth),
+    }
+}
+
+pub fn gen_merkle_is_first_column(
+    log_size: u32,
+    _depth: usize,
+) -> CircleEvaluation<SimdBackend, BaseField, BitReversedOrder> {
+    let n_rows = 1 << log_size;
+    let mut col = Col::<SimdBackend, BaseField>::zeros(n_rows);
+
+    // is_first = 1 only for row 0
+    if n_rows > 0 {
+        col.set(0, BaseField::one());
+    }
+
+    bit_reverse_coset_to_circle_domain_order(col.as_mut_slice());
+    CircleEvaluation::new(CanonicCoset::new(log_size).circle_domain(), col)
+}
+
+pub fn merkle_is_first_column_id(log_size: u32, depth: usize) -> PreProcessedColumnId {
+    PreProcessedColumnId {
+        id: format!("merkle_is_first_{}_{}", log_size, depth),
+    }
+}
+
+pub fn gen_merkle_is_last_column(
+    log_size: u32,
+    depth: usize,
+) -> CircleEvaluation<SimdBackend, BaseField, BitReversedOrder> {
+    let n_rows = 1 << log_size;
+    let mut col = Col::<SimdBackend, BaseField>::zeros(n_rows);
+
+    if depth > 0 && depth - 1 < n_rows {
+        col.set(depth - 1, BaseField::one());
+    }
+
+    bit_reverse_coset_to_circle_domain_order(col.as_mut_slice());
+    CircleEvaluation::new(CanonicCoset::new(log_size).circle_domain(), col)
+}
+
+pub fn merkle_is_last_column_id(log_size: u32, depth: usize) -> PreProcessedColumnId {
+    PreProcessedColumnId {
+        id: format!("merkle_is_last_{}_{}", log_size, depth),
+    }
+}
