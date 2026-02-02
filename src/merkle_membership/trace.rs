@@ -24,16 +24,27 @@ pub fn gen_merkle_trace(
 ) {
     let depth = inputs.depth();
     let n_rows = 1 << log_size;
+
+    assert!(depth > 0, "Merkle tree depth must be at least 1 (got depth={})", depth);
     assert!(
         depth <= n_rows,
         "Tree depth {} exceeds trace size {}",
         depth,
         n_rows
     );
+    assert!(
+        (inputs.index as usize) < (1 << depth),
+        "Leaf index {} is out of bounds for tree depth {} (max index: {})",
+        inputs.index,
+        depth,
+        (1 << depth) - 1
+    );
 
-    // 174 columns: 16 + 64 + 14 + 64 + 16
-    const N_COLUMNS: usize =
+    // 175 columns: 1 (current_node_input) + 174 (Poseidon permutation)
+    // Poseidon: 16 + 64 + 14 + 64 + 16 = 174
+    const N_POSEIDON_COLUMNS: usize =
         N_STATE + (N_HALF_FULL_ROUNDS * N_STATE) + N_PARTIAL_ROUNDS + (N_HALF_FULL_ROUNDS * N_STATE) + N_STATE;
+    const N_COLUMNS: usize = 1 + N_POSEIDON_COLUMNS;
 
     let mut trace = (0..N_COLUMNS)
         .map(|_| Col::<SimdBackend, BaseField>::zeros(n_rows))
@@ -56,6 +67,10 @@ pub fn gen_merkle_trace(
             let index_bit = (inputs.index >> level) & 1;
             let sibling = inputs.siblings[level];
 
+            // Column 0: Store current_node (the input to this level)
+            // This is the value that should be consumed by LogUp
+            trace[0].set(row, current_node);
+
             // Determine left and right children based on index bit
             let (left_child, right_child) = if index_bit == 0 {
                 (current_node, sibling)
@@ -63,9 +78,9 @@ pub fn gen_merkle_trace(
                 (sibling, current_node)
             };
 
-            // Fill the row with Poseidon2 permutation
+            // Fill the row with Poseidon2 permutation (columns 1-174)
             let hash_result =
-                fill_merkle_row(&mut trace, row, left_child, right_child);
+                fill_merkle_row(&mut trace[1..], row, left_child, right_child);
 
             current_node = hash_result;
 

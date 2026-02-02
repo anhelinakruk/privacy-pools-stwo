@@ -16,14 +16,12 @@ mod tests {
     #[test]
     fn test_merkle_prove_and_verify() {
         use stwo::core::channel::Blake2sChannel;
-        use stwo::core::fields::qm31::SecureField;
         use stwo::core::pcs::{CommitmentSchemeVerifier, PcsConfig};
         use stwo::core::poly::circle::CanonicCoset;
         use stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
         use stwo::prover::poly::circle::PolyOps;
         use stwo::prover::{prove, CommitmentSchemeProver};
         use stwo_constraint_framework::TraceLocationAllocator;
-        use num_traits::Zero;
 
         let leaf = BaseField::from_u32_unchecked(12345);
         // Use depth=5 for better testing (more rows)
@@ -142,7 +140,8 @@ mod tests {
             verifier_channel,
         );
 
-        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 174];
+        // 175 columns: 1 (current_node_input) + 174 (Poseidon permutation)
+        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 175];
         commitment_scheme_verifier.commit(
             proof.commitments[1],
             &base_trace_bounds,

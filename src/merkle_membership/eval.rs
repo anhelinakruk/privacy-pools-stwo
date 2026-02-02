@@ -43,13 +43,17 @@ impl FrameworkEval for MerkleMembershipEval {
         let is_first_val = eval.get_preprocessed_column(self.is_first_id.clone());
         let is_last_val = eval.get_preprocessed_column(self.is_last_id.clone());
 
-        // Read initial state (16 elements) from current row
-        // For chaining, we need the first element from BOTH current and next row
-        // So we read col 0 with offsets [0, 1] in ONE call (like Fibonacci does!)
+        // Column 0: current_node_input - the actual input value for LogUp
+        // Read with offset [0] only (no chaining needed for this column)
+        let current_node_input = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+
+        // Columns 1-16: initial_state (Poseidon input)
+        // For chaining, we need initial_state[0] (col 1) from BOTH current and next row
+        // So we read col 1 with offsets [0, 1] in ONE call (like Fibonacci does!)
         let [initial_state_first_curr, initial_state_first_next] =
             eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0, 1]);
 
-        // Read the rest of initial_state (cols 1-15) normally with offset [0]
+        // Read the rest of initial_state (cols 2-16) normally with offset [0]
         let initial_state: [E::F; N_STATE] = std::array::from_fn(|i| {
             if i == 0 {
                 initial_state_first_curr.clone()
@@ -138,11 +142,12 @@ impl FrameworkEval for MerkleMembershipEval {
             is_step_val * (final_state[0].clone() - initial_state_first_next)
         );
 
-        let leaf_value = initial_state[0].clone();
+        // LogUp: consume current_node_input (column 0)
+        // This is always the correct value regardless of index_bit
         eval.add_to_relation(RelationEntry::new(
             &self.leaf_relation,
             (-is_first_val.clone()).into(),
-            &[leaf_value],                
+            &[current_node_input],
         ));
 
         let root_value = final_state[0].clone();

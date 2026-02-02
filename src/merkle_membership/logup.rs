@@ -14,9 +14,9 @@ use crate::{LeafRelation, RootRelation};
 
 use super::trace::ColumnVec;
 
-/// Column index for initial_state[0] (the leaf input)
-const INITIAL_STATE_0_COL: usize = 0;
-const FINAL_STATE_0_COL: usize = 158;
+const CURRENT_NODE_INPUT_COL: usize = 0;
+
+const FINAL_STATE_0_COL: usize = 159;
 
 pub fn gen_merkle_membership_interaction_trace(
     trace: &ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
@@ -50,8 +50,9 @@ pub fn gen_merkle_membership_interaction_trace(
         let mut col_gen = logup_gen.new_col();
 
         for vec_row in 0..(1 << (log_size - LOG_N_LANES)) {
-            // Read leaf value (initial_state[0])
-            let leaf_value: PackedSecureField = trace[INITIAL_STATE_0_COL].data[vec_row].into();
+            // Read leaf value from current_node_input column (column 0)
+            // This is always the correct input value, regardless of index_bit
+            let leaf_value: PackedSecureField = trace[CURRENT_NODE_INPUT_COL].data[vec_row].into();
             let leaf_denom: PackedSecureField = leaf_relation.combine(&[leaf_value]);
 
             // Read root value (final_state[0])

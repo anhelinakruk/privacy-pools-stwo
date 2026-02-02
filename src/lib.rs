@@ -2,6 +2,7 @@ pub mod merkle_membership;
 pub mod poseidon_hash;
 pub mod poseidon_chain;
 pub mod relations;
+pub mod scheduler;
 pub mod privacy_pool;
 
 pub use merkle_membership::{
@@ -20,3 +21,9 @@ pub use poseidon_chain::{
     is_active_column_id, is_step_column_id, is_last_column_id,
 };
 pub use relations::{LeafRelation, RootRelation};
+pub use scheduler::{
+    PrivacyPoolSchedulerComponent, PrivacyPoolSchedulerEval,
+    gen_scheduler_trace, gen_scheduler_interaction_trace,
+    gen_is_first_column, is_first_column_id,
+    SchedulerStatement,
+};

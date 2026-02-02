@@ -44,12 +44,12 @@ pub fn gen_poseidon_chain_interaction_trace(
             let col_data = &trace[FINAL_STATE_0_COL].data;
             let leaf_value: PackedSecureField = col_data[vec_row].into();
 
-            // Combine using leaf_relation (1 element)
-            let denom: PackedSecureField = leaf_relation.combine(&[leaf_value]);
-
             // Multiplicity controlled by is_last selector (positive for "yield")
             let is_last_value = is_last_col.data[vec_row];
             let is_last_secure: PackedSecureField = is_last_value.into();
+
+            // Combine using leaf_relation (1 element)
+            let denom: PackedSecureField = leaf_relation.combine(&[leaf_value]);
             let numerator = is_last_secure; // +1 for last row, 0 for rest
 
             col_gen.write_frac(vec_row, numerator, denom);
