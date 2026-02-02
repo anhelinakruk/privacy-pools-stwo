@@ -26,6 +26,7 @@ pub struct PoseidonChainEval {
     pub is_step_id: PreProcessedColumnId,
     pub is_last_id: PreProcessedColumnId,
     pub leaf_relation: crate::relations::LeafRelation,
+    pub leaf_multiplicity: u32,
     pub claimed_sum: stwo::core::fields::qm31::SecureField,
 }
 
@@ -139,9 +140,13 @@ impl FrameworkEval for PoseidonChainEval {
 
         let leaf_value = final_state_curr[0].clone();
 
+        // LogUp: yield leaf with configurable multiplicity
+        // For deposit chain: multiplicity=2 (consumed by Merkle + Scheduler)
+        // For refund chain: multiplicity=1 (consumed by Scheduler only)
+        let multiplicity = is_last_val * E::F::from(BaseField::from_u32_unchecked(self.leaf_multiplicity));
         eval.add_to_relation(RelationEntry::new(
             &self.leaf_relation,
-            is_last_val.into(), 
+            multiplicity.into(),
             &[leaf_value],
         ));
 
@@ -167,9 +172,9 @@ pub fn gen_is_active_column(
     CircleEvaluation::new(CanonicCoset::new(log_size).circle_domain(), col)
 }
 
-pub fn is_active_column_id(log_size: u32) -> PreProcessedColumnId {
+pub fn is_active_column_id(log_size: u32, component_name: &str) -> PreProcessedColumnId {
     PreProcessedColumnId {
-        id: format!("is_active_{}", log_size),
+        id: format!("is_active_{}_{}", component_name, log_size),
     }
 }
 
@@ -187,9 +192,9 @@ pub fn gen_is_step_column(
     CircleEvaluation::new(CanonicCoset::new(log_size).circle_domain(), col)
 }
 
-pub fn is_step_column_id(log_size: u32) -> PreProcessedColumnId {
+pub fn is_step_column_id(log_size: u32, component_name: &str) -> PreProcessedColumnId {
     PreProcessedColumnId {
-        id: format!("is_step_{}", log_size),
+        id: format!("is_step_{}_{}", component_name, log_size),
     }
 }
 
@@ -213,8 +218,8 @@ pub fn gen_is_last_column(
     CircleEvaluation::new(CanonicCoset::new(log_size).circle_domain(), col)
 }
 
-pub fn is_last_column_id(log_size: u32) -> PreProcessedColumnId {
+pub fn is_last_column_id(log_size: u32, component_name: &str) -> PreProcessedColumnId {
     PreProcessedColumnId {
-        id: format!("is_last_{}", log_size),
+        id: format!("is_last_{}_{}", component_name, log_size),
     }
 }

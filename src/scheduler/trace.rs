@@ -11,17 +11,30 @@ pub fn gen_scheduler_trace(
     log_size: u32,
     computed_root: BaseField,
     expected_root: BaseField,
+    commitment_amount: BaseField,
+    refund_amount: BaseField,
+    deposit_leaf: BaseField,
+    refund_leaf: BaseField,
 ) -> ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>> {
     let n_rows = 1 << log_size;
 
     let mut trace = vec![
-        Col::<SimdBackend, BaseField>::zeros(n_rows), 
-        Col::<SimdBackend, BaseField>::zeros(n_rows),
+        Col::<SimdBackend, BaseField>::zeros(n_rows),  // computed_root
+        Col::<SimdBackend, BaseField>::zeros(n_rows),  // expected_root
+        Col::<SimdBackend, BaseField>::zeros(n_rows),  // commitment_amount
+        Col::<SimdBackend, BaseField>::zeros(n_rows),  // refund_amount
+        Col::<SimdBackend, BaseField>::zeros(n_rows),  // deposit_leaf
+        Col::<SimdBackend, BaseField>::zeros(n_rows),  // refund_leaf
     ];
 
+    // Only row 0 matters (is_first selector = 1 only for row 0)
     if n_rows > 0 {
         trace[0].set(0, computed_root);
         trace[1].set(0, expected_root);
+        trace[2].set(0, commitment_amount);
+        trace[3].set(0, refund_amount);
+        trace[4].set(0, deposit_leaf);
+        trace[5].set(0, refund_leaf);
     }
 
     for col in trace.iter_mut() {

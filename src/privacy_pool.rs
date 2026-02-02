@@ -37,18 +37,36 @@ mod tests {
     fn test_privacy_pool_combined() {
         const LOG_SIZE: u32 = 5;
 
-        let chain_inputs = ChainInputs::for_deposit(
+        // Generate deposit chain
+        let deposit_inputs = ChainInputs::for_deposit(
             BaseField::from_u32_unchecked(12345),
             BaseField::from_u32_unchecked(67890),
             BaseField::from_u32_unchecked(100),
             BaseField::from_u32_unchecked(0xABCD),
         );
-        let (chain_trace, chain_outputs) = gen_poseidon_chain_trace(LOG_SIZE, chain_inputs.clone());
-        println!(" Computed leaf: {}\n", chain_outputs.leaf.0);
+        let (deposit_trace, deposit_outputs) = gen_poseidon_chain_trace(LOG_SIZE, deposit_inputs.clone());
+        println!("Deposit leaf: {}\n", deposit_outputs.leaf.0);
+
+        // Generate refund chain
+        let refund_inputs = ChainInputs::for_refund(
+            BaseField::from_u32_unchecked(54321),
+            BaseField::from_u32_unchecked(98765),
+            BaseField::from_u32_unchecked(40),
+            BaseField::from_u32_unchecked(0xABCD),
+        );
+        let (refund_trace, refund_outputs) = gen_poseidon_chain_trace(LOG_SIZE, refund_inputs.clone());
+        println!("Refund leaf: {}\n", refund_outputs.leaf.0);
+
+        // Public inputs
+        let nullifier = BaseField::from_u32_unchecked(67890);
+        let token_address = BaseField::from_u32_unchecked(0xABCD);
+        let amount = BaseField::from_u32_unchecked(60);  // withdrawal amount = 100 - 40
+        let refund_commitment_hash = refund_outputs.leaf;
+        let recipient = BaseField::from_u32_unchecked(0xDEADBEEF);
 
         // First, compute the Merkle root
         let merkle_inputs_temp = MerkleInputs {
-            leaf: chain_outputs.leaf,
+            leaf: deposit_outputs.leaf,
             index: 1,
             siblings: vec![
                 BaseField::from_u32_unchecked(11111),
@@ -80,12 +98,20 @@ mod tests {
             CommitmentSchemeProver::<SimdBackend, Blake2sMerkleChannel>::new(config, &twiddles);
 
         // Mix public statement into Fiat-Shamir channel BEFORE drawing relations
-        // PUBLIC INPUTS: expected_root and depth (both known to verifier)
-        let scheduler_statement = SchedulerStatement::new(merkle_inputs.expected_root, merkle_inputs.depth() as u32);
+        let scheduler_statement = SchedulerStatement::new(
+            merkle_inputs.expected_root,
+            merkle_inputs.depth() as u32,
+            nullifier,
+            token_address,
+            amount,
+            refund_commitment_hash,
+            recipient,
+        );
         scheduler_statement.mix_into(prover_channel);
 
         let leaf_relation = LeafRelation::draw(prover_channel);
         let root_relation = RootRelation::draw(prover_channel);
+        let refund_leaf_relation = crate::relations::RefundLeafRelation::draw(prover_channel);
   
         let chain_is_active = gen_is_active_column(LOG_SIZE);
         let chain_is_step = gen_is_step_column(LOG_SIZE);
@@ -98,12 +124,15 @@ mod tests {
 
         let scheduler_is_first = gen_scheduler_is_first_column(LOG_SIZE);
 
-        // Commit preprocessed columns (3 chain + 4 merkle + 1 scheduler = 8 columns)
+        // Commit preprocessed columns (3 deposit + 3 refund + 4 merkle + 1 scheduler = 11 columns)
         let mut tree_builder = commitment_scheme.tree_builder();
         tree_builder.extend_evals([
-            chain_is_active.clone(),
-            chain_is_step.clone(),
-            chain_is_last.clone(),
+            chain_is_active.clone(),  // deposit is_active
+            chain_is_step.clone(),    // deposit is_step
+            chain_is_last.clone(),    // deposit is_last
+            chain_is_active.clone(),  // refund is_active
+            chain_is_step.clone(),    // refund is_step
+            chain_is_last.clone(),    // refund is_last
             merkle_is_active.clone(),
             merkle_is_step.clone(),
             merkle_is_first.clone(),
@@ -112,21 +141,42 @@ mod tests {
         ]);
         tree_builder.commit(prover_channel);
 
-        // Generate Scheduler trace (consumes computed_root, verifies vs expected_root)
+        // Generate Scheduler trace (6 columns: computed_root, expected_root, commitment_amount, refund_amount, deposit_leaf, refund_leaf)
         let expected_root = merkle_inputs.expected_root; // PUBLIC INPUT!
-        let scheduler_trace = gen_scheduler_trace(LOG_SIZE, computed_root, expected_root);
+        let commitment_amount = BaseField::from_u32_unchecked(100);
+        let refund_amount = BaseField::from_u32_unchecked(40);
+        let scheduler_trace = gen_scheduler_trace(
+            LOG_SIZE,
+            computed_root,
+            expected_root,
+            commitment_amount,
+            refund_amount,
+            deposit_outputs.leaf,
+            refund_outputs.leaf,
+        );
 
-        // Commit base traces (chain + merkle + scheduler)
+        // Commit base traces (deposit + refund + merkle + scheduler)
         let mut tree_builder = commitment_scheme.tree_builder();
-        tree_builder.extend_evals(chain_trace.clone());
+        tree_builder.extend_evals(deposit_trace.clone());
+        tree_builder.extend_evals(refund_trace.clone());
         tree_builder.extend_evals(merkle_trace.clone());
         tree_builder.extend_evals(scheduler_trace.clone());
         tree_builder.commit(prover_channel);
 
-        let (chain_interaction_trace, chain_claimed_sum) = gen_poseidon_chain_interaction_trace(
-            &chain_trace,
+        // Generate deposit chain interaction trace (multiplicity=2: consumed by merkle + scheduler)
+        let (deposit_interaction_trace, deposit_claimed_sum) = gen_poseidon_chain_interaction_trace(
+            &deposit_trace,
             &leaf_relation,
             LOG_SIZE,
+            2,  // multiplicity=2
+        );
+
+        // Generate refund chain interaction trace (multiplicity=1: consumed by scheduler only)
+        let (refund_interaction_trace, refund_claimed_sum) = gen_poseidon_chain_interaction_trace(
+            &refund_trace,
+            &leaf_relation,
+            LOG_SIZE,
+            1,  // multiplicity=1
         );
 
         let (merkle_interaction_trace, merkle_claimed_sum) =
@@ -138,25 +188,37 @@ mod tests {
                 merkle_inputs.depth(),
             );
 
-        // Generate Scheduler interaction trace (consumes root via LogUp)
+        // Generate Scheduler interaction trace (consumes deposit_leaf + root + refund_leaf via LogUp)
         let (scheduler_interaction_trace, scheduler_claimed_sum) =
             gen_scheduler_interaction_trace(
                 &scheduler_trace,
-                &root_relation,
+                &leaf_relation,         // deposit leaf relation
+                &root_relation,          // root relation
+                &refund_leaf_relation,   // refund leaf relation
                 LOG_SIZE,
             );
 
-        // Commit interaction traces (chain + merkle + scheduler)
+        // Commit interaction traces (deposit + refund + merkle + scheduler)
+        use itertools::chain;
+
         let mut tree_builder = commitment_scheme.tree_builder();
-        tree_builder.extend_evals(chain_interaction_trace.clone());
-        tree_builder.extend_evals(merkle_interaction_trace.clone());
-        tree_builder.extend_evals(scheduler_interaction_trace.clone());
+        tree_builder.extend_evals(
+            chain![
+                deposit_interaction_trace,
+                refund_interaction_trace,
+                merkle_interaction_trace,
+                scheduler_interaction_trace
+            ].collect::<Vec<_>>(),
+        );
         tree_builder.commit(prover_channel);
 
         let mut tree_span_provider = TraceLocationAllocator::new_with_preprocessed_columns(&[
-            is_active_column_id(LOG_SIZE),
-            is_step_column_id(LOG_SIZE),
-            is_last_column_id(LOG_SIZE),
+            is_active_column_id(LOG_SIZE, "deposit"),
+            is_step_column_id(LOG_SIZE, "deposit"),
+            is_last_column_id(LOG_SIZE, "deposit"),
+            is_active_column_id(LOG_SIZE, "refund"),
+            is_step_column_id(LOG_SIZE, "refund"),
+            is_last_column_id(LOG_SIZE, "refund"),
             merkle_is_active_column_id(LOG_SIZE, merkle_inputs.depth()),
             merkle_is_step_column_id(LOG_SIZE, merkle_inputs.depth()),
             merkle_is_first_column_id(LOG_SIZE, merkle_inputs.depth()),
@@ -164,17 +226,32 @@ mod tests {
             scheduler_is_first_column_id(LOG_SIZE),
         ]);
 
-        let chain_component = PoseidonChainComponent::new(
+        let deposit_component = PoseidonChainComponent::new(
             &mut tree_span_provider,
             PoseidonChainEval {
                 log_n_rows: LOG_SIZE,
-                is_active_id: is_active_column_id(LOG_SIZE),
-                is_step_id: is_step_column_id(LOG_SIZE),
-                is_last_id: is_last_column_id(LOG_SIZE),
+                is_active_id: is_active_column_id(LOG_SIZE, "deposit"),
+                is_step_id: is_step_column_id(LOG_SIZE, "deposit"),
+                is_last_id: is_last_column_id(LOG_SIZE, "deposit"),
                 leaf_relation: leaf_relation.clone(),
-                claimed_sum: chain_claimed_sum,
+                leaf_multiplicity: 2,
+                claimed_sum: deposit_claimed_sum,
             },
-            chain_claimed_sum,  // Total claimed sum for chain component
+            deposit_claimed_sum,
+        );
+
+        let refund_component = PoseidonChainComponent::new(
+            &mut tree_span_provider,
+            PoseidonChainEval {
+                log_n_rows: LOG_SIZE,
+                is_active_id: is_active_column_id(LOG_SIZE, "refund"),
+                is_step_id: is_step_column_id(LOG_SIZE, "refund"),
+                is_last_id: is_last_column_id(LOG_SIZE, "refund"),
+                leaf_relation: leaf_relation.clone(),
+                leaf_multiplicity: 1,
+                claimed_sum: refund_claimed_sum,
+            },
+            refund_claimed_sum,
         );
 
         let merkle_component = MerkleMembershipComponent::new(
@@ -198,14 +275,18 @@ mod tests {
             PrivacyPoolSchedulerEval {
                 log_n_rows: LOG_SIZE,
                 is_first_id: scheduler_is_first_column_id(LOG_SIZE),
+                leaf_relation: leaf_relation.clone(),
                 root_relation: root_relation.clone(),
+                refund_leaf_relation: refund_leaf_relation.clone(),
+                amount,
+                refund_commitment_hash,
                 claimed_sum: scheduler_claimed_sum,
             },
             scheduler_claimed_sum,  // Total claimed sum for scheduler component
         );
 
         let proof = prove::<SimdBackend, Blake2sMerkleChannel>(
-            &[&chain_component, &merkle_component, &scheduler_component],
+            &[&deposit_component, &refund_component, &merkle_component, &scheduler_component],
             prover_channel,
             commitment_scheme,
         )
@@ -216,31 +297,39 @@ mod tests {
         let mut commitment_scheme_verifier =
             CommitmentSchemeVerifier::<Blake2sMerkleChannel>::new(config);
 
-        // Verifier receives PUBLIC INPUTS (outside the proof):
-        // - expected_root: the Merkle root to verify against
-        // - depth: the depth of the Merkle tree
+        // Verifier receives PUBLIC INPUTS (outside the proof)
         // In this test, we use the same values as prover, but in real system
         // verifier would receive these from external source
         let scheduler_statement_v = SchedulerStatement::new(
             merkle_inputs.expected_root,
-            merkle_inputs.depth() as u32
+            merkle_inputs.depth() as u32,
+            nullifier,
+            token_address,
+            amount,
+            refund_commitment_hash,
+            recipient,
         );
         scheduler_statement_v.mix_into(verifier_channel);
 
         let leaf_relation_v = LeafRelation::draw(verifier_channel);
         let root_relation_v = RootRelation::draw(verifier_channel);
+        let refund_leaf_relation_v = crate::relations::RefundLeafRelation::draw(verifier_channel);
 
-        // Commit preprocessed (3 chain + 4 merkle + 1 scheduler = 8 columns)
+        // Commit preprocessed (3 deposit + 3 refund + 4 merkle + 1 scheduler = 11 columns)
         commitment_scheme_verifier.commit(
             proof.commitments[0],
-            &[LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE],
+            &[LOG_SIZE, LOG_SIZE, LOG_SIZE,    // deposit: is_active, is_step, is_last
+              LOG_SIZE, LOG_SIZE, LOG_SIZE,    // refund: is_active, is_step, is_last
+              LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE,  // merkle: is_active, is_step, is_first, is_last
+              LOG_SIZE],                       // scheduler: is_first
             verifier_channel,
         );
 
-        // Commit base traces (174 chain + 175 merkle + 2 scheduler = 351 columns)
-        let mut base_trace_bounds = vec![LOG_SIZE; 174]; // PoseidonChain
-        base_trace_bounds.extend(vec![LOG_SIZE; 175]); // MerkleMembership (175 = 1 current_node_input + 174 Poseidon)
-        base_trace_bounds.extend(vec![LOG_SIZE; 2]);   // Scheduler (2 columns)
+        // Commit base traces (174 deposit + 174 refund + 175 merkle + 6 scheduler = 529 columns)
+        let mut base_trace_bounds = vec![LOG_SIZE; 174]; // Deposit chain
+        base_trace_bounds.extend(vec![LOG_SIZE; 174]);   // Refund chain
+        base_trace_bounds.extend(vec![LOG_SIZE; 175]);   // MerkleMembership (175 = 1 current_node_input + 174 Poseidon)
+        base_trace_bounds.extend(vec![LOG_SIZE; 6]);     // Scheduler (6 columns: computed_root, expected_root, commitment_amount, refund_amount, deposit_leaf, refund_leaf)
         commitment_scheme_verifier.commit(
             proof.commitments[1],
             &base_trace_bounds,
@@ -248,22 +337,29 @@ mod tests {
         );
 
         // Commit interaction traces
-        // Chain: 4 columns
+        // Deposit: 4 columns (multiplicity=2)
+        // Refund: 4 columns (multiplicity=1)
         // Merkle: 4 columns (both relations combined)
-        // Scheduler: 4 columns
-        // Total: 12 columns
+        // Scheduler: 12 columns (3 relations * 4 columns each)
+        // Total: 24 columns
         commitment_scheme_verifier.commit(
             proof.commitments[2],
-            &[LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE,   // Chain
-              LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE,   // Merkle (combined)
-              LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE],  // Scheduler
+            &[LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE,   // Deposit
+              LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE,   // Refund
+              LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE,   // Merkle
+              LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE,   // Scheduler rel 1
+              LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE,   // Scheduler rel 2
+              LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE],  // Scheduler rel 3
             verifier_channel,
         );
 
         let mut tree_span_provider_v = TraceLocationAllocator::new_with_preprocessed_columns(&[
-            is_active_column_id(LOG_SIZE),
-            is_step_column_id(LOG_SIZE),
-            is_last_column_id(LOG_SIZE),
+            is_active_column_id(LOG_SIZE, "deposit"),
+            is_step_column_id(LOG_SIZE, "deposit"),
+            is_last_column_id(LOG_SIZE, "deposit"),
+            is_active_column_id(LOG_SIZE, "refund"),
+            is_step_column_id(LOG_SIZE, "refund"),
+            is_last_column_id(LOG_SIZE, "refund"),
             merkle_is_active_column_id(LOG_SIZE, merkle_inputs.depth()),
             merkle_is_step_column_id(LOG_SIZE, merkle_inputs.depth()),
             merkle_is_first_column_id(LOG_SIZE, merkle_inputs.depth()),
@@ -271,17 +367,32 @@ mod tests {
             scheduler_is_first_column_id(LOG_SIZE),
         ]);
 
-        let chain_component_v = PoseidonChainComponent::new(
+        let deposit_component_v = PoseidonChainComponent::new(
             &mut tree_span_provider_v,
             PoseidonChainEval {
                 log_n_rows: LOG_SIZE,
-                is_active_id: is_active_column_id(LOG_SIZE),
-                is_step_id: is_step_column_id(LOG_SIZE),
-                is_last_id: is_last_column_id(LOG_SIZE),
+                is_active_id: is_active_column_id(LOG_SIZE, "deposit"),
+                is_step_id: is_step_column_id(LOG_SIZE, "deposit"),
+                is_last_id: is_last_column_id(LOG_SIZE, "deposit"),
                 leaf_relation: leaf_relation_v.clone(),
-                claimed_sum: chain_claimed_sum,
+                leaf_multiplicity: 2,
+                claimed_sum: deposit_claimed_sum,
             },
-            chain_claimed_sum, 
+            deposit_claimed_sum,
+        );
+
+        let refund_component_v = PoseidonChainComponent::new(
+            &mut tree_span_provider_v,
+            PoseidonChainEval {
+                log_n_rows: LOG_SIZE,
+                is_active_id: is_active_column_id(LOG_SIZE, "refund"),
+                is_step_id: is_step_column_id(LOG_SIZE, "refund"),
+                is_last_id: is_last_column_id(LOG_SIZE, "refund"),
+                leaf_relation: leaf_relation_v.clone(),
+                leaf_multiplicity: 1,
+                claimed_sum: refund_claimed_sum,
+            },
+            refund_claimed_sum,
         );
 
         let merkle_component_v = MerkleMembershipComponent::new(
@@ -305,14 +416,18 @@ mod tests {
             PrivacyPoolSchedulerEval {
                 log_n_rows: LOG_SIZE,
                 is_first_id: scheduler_is_first_column_id(LOG_SIZE),
+                leaf_relation: leaf_relation_v.clone(),
                 root_relation: root_relation_v.clone(),
+                refund_leaf_relation: refund_leaf_relation_v.clone(),
+                amount,
+                refund_commitment_hash,
                 claimed_sum: scheduler_claimed_sum,
             },
             scheduler_claimed_sum,
         );
 
         let result = stwo::core::verifier::verify(
-            &[&chain_component_v, &merkle_component_v, &scheduler_component_v],
+            &[&deposit_component_v, &refund_component_v, &merkle_component_v, &scheduler_component_v],
             verifier_channel,
             &mut commitment_scheme_verifier,
             proof,

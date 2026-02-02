@@ -123,6 +123,7 @@ mod tests {
             &trace,
             &leaf_relation,
             LOG_SIZE,
+            1,  // multiplicity=1 for test
         );
 
         println!("Interaction trace columns: {}", interaction_trace.len());
@@ -135,19 +136,20 @@ mod tests {
 
         // Create component
         let mut tree_span_provider = TraceLocationAllocator::new_with_preprocessed_columns(&[
-            is_active_column_id(LOG_SIZE),
-            is_step_column_id(LOG_SIZE),
-            is_last_column_id(LOG_SIZE),
+            is_active_column_id(LOG_SIZE, "test"),
+            is_step_column_id(LOG_SIZE, "test"),
+            is_last_column_id(LOG_SIZE, "test"),
         ]);
 
         let component = PoseidonChainComponent::new(
             &mut tree_span_provider,
             PoseidonChainEval {
                 log_n_rows: LOG_SIZE,
-                is_active_id: is_active_column_id(LOG_SIZE),
-                is_step_id: is_step_column_id(LOG_SIZE),
-                is_last_id: is_last_column_id(LOG_SIZE),
+                is_active_id: is_active_column_id(LOG_SIZE, "test"),
+                is_step_id: is_step_column_id(LOG_SIZE, "test"),
+                is_last_id: is_last_column_id(LOG_SIZE, "test"),
                 leaf_relation: leaf_relation.clone(),
+                leaf_multiplicity: 1,
                 claimed_sum,  // Use actual claimed sum from interaction trace
             },
             claimed_sum,  // Total claimed sum for component
@@ -193,19 +195,20 @@ mod tests {
         // Create verifier component
         let mut tree_span_provider_verifier =
             TraceLocationAllocator::new_with_preprocessed_columns(&[
-                is_active_column_id(LOG_SIZE),
-                is_step_column_id(LOG_SIZE),
-                is_last_column_id(LOG_SIZE),
+                is_active_column_id(LOG_SIZE, "test"),
+                is_step_column_id(LOG_SIZE, "test"),
+                is_last_column_id(LOG_SIZE, "test"),
             ]);
 
         let verifier_component = PoseidonChainComponent::new(
             &mut tree_span_provider_verifier,
             PoseidonChainEval {
                 log_n_rows: LOG_SIZE,
-                is_active_id: is_active_column_id(LOG_SIZE),
-                is_step_id: is_step_column_id(LOG_SIZE),
-                is_last_id: is_last_column_id(LOG_SIZE),
+                is_active_id: is_active_column_id(LOG_SIZE, "test"),
+                is_step_id: is_step_column_id(LOG_SIZE, "test"),
+                is_last_id: is_last_column_id(LOG_SIZE, "test"),
                 leaf_relation: leaf_relation_v.clone(),
+                leaf_multiplicity: 1,
                 claimed_sum,  // Use same claimed sum
             },
             claimed_sum,  // Total claimed sum for component

@@ -20,6 +20,7 @@ pub fn gen_poseidon_chain_interaction_trace(
     trace: &ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
     leaf_relation: &LeafRelation,
     log_size: u32,
+    leaf_multiplicity: u32,
 ) -> (
     ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
     SecureField,
@@ -50,7 +51,12 @@ pub fn gen_poseidon_chain_interaction_trace(
 
             // Combine using leaf_relation (1 element)
             let denom: PackedSecureField = leaf_relation.combine(&[leaf_value]);
-            let numerator = is_last_secure; // +1 for last row, 0 for rest
+
+            // Apply multiplicity (2 for deposit chain, 1 for refund chain)
+            let multiplicity_base = BaseField::from_u32_unchecked(leaf_multiplicity);
+            let multiplicity_packed: stwo::prover::backend::simd::m31::PackedM31 = multiplicity_base.into();
+            let multiplicity_secure: PackedSecureField = multiplicity_packed.into();
+            let numerator = is_last_secure * multiplicity_secure; // +multiplicity for last row
 
             col_gen.write_frac(vec_row, numerator, denom);
         }
