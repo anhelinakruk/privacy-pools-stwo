@@ -124,15 +124,14 @@ mod tests {
 
         let scheduler_is_first = gen_scheduler_is_first_column(LOG_SIZE);
 
-        // Commit preprocessed columns (3 deposit + 3 refund + 4 merkle + 1 scheduler = 11 columns)
         let mut tree_builder = commitment_scheme.tree_builder();
         tree_builder.extend_evals([
-            chain_is_active.clone(),  // deposit is_active
-            chain_is_step.clone(),    // deposit is_step
-            chain_is_last.clone(),    // deposit is_last
-            chain_is_active.clone(),  // refund is_active
-            chain_is_step.clone(),    // refund is_step
-            chain_is_last.clone(),    // refund is_last
+            chain_is_active.clone(),
+            chain_is_step.clone(),
+            chain_is_last.clone(),
+            chain_is_active.clone(),
+            chain_is_step.clone(),
+            chain_is_last.clone(),
             merkle_is_active.clone(),
             merkle_is_step.clone(),
             merkle_is_first.clone(),
@@ -141,10 +140,9 @@ mod tests {
         ]);
         tree_builder.commit(prover_channel);
 
-        // Generate Scheduler trace (6 columns: computed_root, expected_root, commitment_amount, refund_amount, deposit_leaf, refund_leaf)
-        let expected_root = merkle_inputs.expected_root; // PUBLIC INPUT!
-        let commitment_amount = BaseField::from_u32_unchecked(100);
-        let refund_amount = BaseField::from_u32_unchecked(40);
+        let expected_root = merkle_inputs.expected_root;
+        let commitment_amount = deposit_inputs.input2;
+        let refund_amount = refund_inputs.input2;
         let scheduler_trace = gen_scheduler_trace(
             LOG_SIZE,
             computed_root,
@@ -163,20 +161,18 @@ mod tests {
         tree_builder.extend_evals(scheduler_trace.clone());
         tree_builder.commit(prover_channel);
 
-        // Generate deposit chain interaction trace (multiplicity=2: consumed by merkle + scheduler)
         let (deposit_interaction_trace, deposit_claimed_sum) = gen_poseidon_chain_interaction_trace(
             &deposit_trace,
             &leaf_relation,
             LOG_SIZE,
-            2,  // multiplicity=2
+            2,
         );
 
-        // Generate refund chain interaction trace (multiplicity=1: consumed by scheduler only)
         let (refund_interaction_trace, refund_claimed_sum) = gen_poseidon_chain_interaction_trace(
             &refund_trace,
             &leaf_relation,
             LOG_SIZE,
-            1,  // multiplicity=1
+            1,
         );
 
         let (merkle_interaction_trace, merkle_claimed_sum) =
@@ -188,13 +184,12 @@ mod tests {
                 merkle_inputs.depth(),
             );
 
-        // Generate Scheduler interaction trace (consumes deposit_leaf + root + refund_leaf via LogUp)
         let (scheduler_interaction_trace, scheduler_claimed_sum) =
             gen_scheduler_interaction_trace(
                 &scheduler_trace,
-                &leaf_relation,         // deposit leaf relation
-                &root_relation,          // root relation
-                &refund_leaf_relation,   // refund leaf relation
+                &leaf_relation,
+                &root_relation,
+                &refund_leaf_relation,
                 LOG_SIZE,
             );
 

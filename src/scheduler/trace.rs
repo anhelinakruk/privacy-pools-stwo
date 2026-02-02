@@ -19,15 +19,14 @@ pub fn gen_scheduler_trace(
     let n_rows = 1 << log_size;
 
     let mut trace = vec![
-        Col::<SimdBackend, BaseField>::zeros(n_rows),  // computed_root
-        Col::<SimdBackend, BaseField>::zeros(n_rows),  // expected_root
-        Col::<SimdBackend, BaseField>::zeros(n_rows),  // commitment_amount
-        Col::<SimdBackend, BaseField>::zeros(n_rows),  // refund_amount
-        Col::<SimdBackend, BaseField>::zeros(n_rows),  // deposit_leaf
-        Col::<SimdBackend, BaseField>::zeros(n_rows),  // refund_leaf
+        Col::<SimdBackend, BaseField>::zeros(n_rows),
+        Col::<SimdBackend, BaseField>::zeros(n_rows),
+        Col::<SimdBackend, BaseField>::zeros(n_rows),
+        Col::<SimdBackend, BaseField>::zeros(n_rows),
+        Col::<SimdBackend, BaseField>::zeros(n_rows),
+        Col::<SimdBackend, BaseField>::zeros(n_rows),
     ];
 
-    // Only row 0 matters (is_first selector = 1 only for row 0)
     if n_rows > 0 {
         trace[0].set(0, computed_root);
         trace[1].set(0, expected_root);

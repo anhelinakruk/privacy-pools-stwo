@@ -29,16 +29,13 @@ pub fn gen_scheduler_interaction_trace(
     is_first_col.set(0, BaseField::one());
     bit_reverse_coset_to_circle_domain_order(is_first_col.as_mut_slice());
 
-    // Columns: [computed_root, expected_root, commitment_amount, refund_amount, deposit_leaf, refund_leaf]
-
     let mut logup_gen = LogupTraceGenerator::new(log_size);
 
-    // Relation 1: consume deposit_leaf (MUST match eval.rs order!)
     {
         let mut col_gen = logup_gen.new_col();
 
         for vec_row in 0..(1 << (log_size - LOG_N_LANES)) {
-            let col_data = &trace[4].data;  // deposit_leaf column (index 4)
+            let col_data = &trace[4].data;
             let deposit_leaf_value: PackedSecureField = col_data[vec_row].into();
 
             let denom: PackedSecureField = leaf_relation.combine(&[deposit_leaf_value]);
@@ -53,12 +50,11 @@ pub fn gen_scheduler_interaction_trace(
         col_gen.finalize_col();
     }
 
-    // Relation 2: consume root (MUST match eval.rs order!)
     {
         let mut col_gen = logup_gen.new_col();
 
         for vec_row in 0..(1 << (log_size - LOG_N_LANES)) {
-            let col_data = &trace[0].data;  // computed_root column
+            let col_data = &trace[0].data;
             let computed_root_value: PackedSecureField = col_data[vec_row].into();
 
             let denom: PackedSecureField = root_relation.combine(&[computed_root_value]);
@@ -73,12 +69,11 @@ pub fn gen_scheduler_interaction_trace(
         col_gen.finalize_col();
     }
 
-    // Relation 3: consume refund_leaf (MUST match eval.rs order!)
     {
         let mut col_gen = logup_gen.new_col();
 
         for vec_row in 0..(1 << (log_size - LOG_N_LANES)) {
-            let col_data = &trace[5].data;  // refund_leaf column (index 5)
+            let col_data = &trace[5].data;
             let refund_leaf_value: PackedSecureField = col_data[vec_row].into();
 
             let denom: PackedSecureField = refund_leaf_relation.combine(&[refund_leaf_value]);

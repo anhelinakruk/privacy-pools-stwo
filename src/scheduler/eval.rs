@@ -31,7 +31,6 @@ impl FrameworkEval for PrivacyPoolSchedulerEval {
     fn evaluate<E: EvalAtRow>(&self, mut eval: E) -> E {
         let is_first = eval.get_preprocessed_column(self.is_first_id.clone());
 
-        // Read 6 trace columns
         let computed_root = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
         let expected_root = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
         let commitment_amount = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
@@ -39,32 +38,24 @@ impl FrameworkEval for PrivacyPoolSchedulerEval {
         let deposit_leaf = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
         let refund_leaf = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
 
-        // Constraint 1: computed_root == expected_root (only for first row)
         eval.add_constraint(is_first.clone() * (computed_root.clone() - expected_root));
-
-        // Constraint 2: amount == commitment_amount - refund_amount (only for first row)
         eval.add_constraint(
             is_first.clone() * (E::F::from(self.amount) - (commitment_amount - refund_amount))
         );
-
-        // Constraint 3: refund_commitment_hash == refund_leaf (only for first row)
         eval.add_constraint(is_first.clone() * (E::F::from(self.refund_commitment_hash) - refund_leaf.clone()));
 
-        // LogUp: consume deposit_leaf from deposit chain
         eval.add_to_relation(RelationEntry::new(
             &self.leaf_relation,
             (-is_first.clone()).into(),
             &[deposit_leaf],
         ));
 
-        // LogUp: consume computed_root from merkle
         eval.add_to_relation(RelationEntry::new(
             &self.root_relation,
             (-is_first.clone()).into(),
             &[computed_root],
         ));
 
-        // LogUp: consume refund_leaf from refund chain
         eval.add_to_relation(RelationEntry::new(
             &self.refund_leaf_relation,
             (-is_first).into(),

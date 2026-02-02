@@ -18,6 +18,7 @@ use crate::poseidon_hash::{
 };
 
 use super::trace::N_CHAIN_ROWS;
+use crate::relations::LeafRelation;
 
 #[derive(Clone)]
 pub struct PoseidonChainEval {
@@ -25,12 +26,13 @@ pub struct PoseidonChainEval {
     pub is_active_id: PreProcessedColumnId,
     pub is_step_id: PreProcessedColumnId,
     pub is_last_id: PreProcessedColumnId,
-    pub leaf_relation: crate::relations::LeafRelation,
+    pub leaf_relation: LeafRelation,
     pub leaf_multiplicity: u32,
     pub claimed_sum: stwo::core::fields::qm31::SecureField,
 }
 
-impl FrameworkEval for PoseidonChainEval {
+impl FrameworkEval for PoseidonChainEval
+{
     fn log_size(&self) -> u32 {
         self.log_n_rows
     }

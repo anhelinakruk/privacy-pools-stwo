@@ -10,12 +10,13 @@ use stwo::prover::poly::BitReversedOrder;
 use stwo_constraint_framework::{LogupTraceGenerator, Relation};
 use num_traits::One;
 
-use crate::LeafRelation;
-
 use super::trace::{N_CHAIN_ROWS, ColumnVec};
+
+use crate::relations::LeafRelation;
 
 const FINAL_STATE_0_COL: usize = 158;
 
+/// Generate interaction trace for Poseidon chain with LeafRelation.
 pub fn gen_poseidon_chain_interaction_trace(
     trace: &ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
     leaf_relation: &LeafRelation,
@@ -24,7 +25,8 @@ pub fn gen_poseidon_chain_interaction_trace(
 ) -> (
     ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
     SecureField,
-) {
+)
+{
     let n_rows = 1 << log_size;
 
     // Generate is_last selector column (1 only for row N_CHAIN_ROWS-1)
