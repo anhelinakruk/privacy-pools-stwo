@@ -25,7 +25,11 @@ pub fn gen_merkle_trace(
     let depth = inputs.depth();
     let n_rows = 1 << log_size;
 
-    assert!(depth > 0, "Merkle tree depth must be at least 1 (got depth={})", depth);
+    assert!(
+        depth > 0,
+        "Merkle tree depth must be at least 1 (got depth={})",
+        depth
+    );
     assert!(
         depth <= n_rows,
         "Tree depth {} exceeds trace size {}",
@@ -42,8 +46,11 @@ pub fn gen_merkle_trace(
 
     // 175 columns: 1 (current_node_input) + 174 (Poseidon permutation)
     // Poseidon: 16 + 64 + 14 + 64 + 16 = 174
-    const N_POSEIDON_COLUMNS: usize =
-        N_STATE + (N_HALF_FULL_ROUNDS * N_STATE) + N_PARTIAL_ROUNDS + (N_HALF_FULL_ROUNDS * N_STATE) + N_STATE;
+    const N_POSEIDON_COLUMNS: usize = N_STATE
+        + (N_HALF_FULL_ROUNDS * N_STATE)
+        + N_PARTIAL_ROUNDS
+        + (N_HALF_FULL_ROUNDS * N_STATE)
+        + N_STATE;
     const N_COLUMNS: usize = 1 + N_POSEIDON_COLUMNS;
 
     let mut trace = (0..N_COLUMNS)
@@ -79,8 +86,7 @@ pub fn gen_merkle_trace(
             };
 
             // Fill the row with Poseidon2 permutation (columns 1-174)
-            let hash_result =
-                fill_merkle_row(&mut trace[1..], row, left_child, right_child);
+            let hash_result = fill_merkle_row(&mut trace[1..], row, left_child, right_child);
 
             current_node = hash_result;
 
@@ -105,7 +111,7 @@ pub fn gen_merkle_trace(
 }
 
 fn fill_merkle_row(
-    trace: &mut [Col::<SimdBackend, BaseField>],
+    trace: &mut [Col<SimdBackend, BaseField>],
     row: usize,
     left: BaseField,
     right: BaseField,

@@ -1,3 +1,4 @@
+use num_traits::One;
 use stwo::core::fields::m31::BaseField;
 use stwo::core::fields::qm31::SecureField;
 use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
@@ -8,7 +9,6 @@ use stwo::prover::backend::{Col, Column};
 use stwo::prover::poly::circle::CircleEvaluation;
 use stwo::prover::poly::BitReversedOrder;
 use stwo_constraint_framework::{LogupTraceGenerator, Relation};
-use num_traits::One;
 
 use crate::{LeafRelation, RootRelation};
 

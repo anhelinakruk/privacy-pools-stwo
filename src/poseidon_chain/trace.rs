@@ -7,9 +7,8 @@ use stwo::prover::poly::circle::CircleEvaluation;
 use stwo::prover::poly::BitReversedOrder;
 
 use crate::poseidon_hash::{
-    apply_external_round_matrix, apply_internal_round_matrix, pow5,
-    EXTERNAL_ROUND_CONSTS, INTERNAL_ROUND_CONSTS,
-    N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
+    apply_external_round_matrix, apply_internal_round_matrix, pow5, EXTERNAL_ROUND_CONSTS,
+    INTERNAL_ROUND_CONSTS, N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
 };
 
 use super::types::{ChainInputs, ChainOutputs};
@@ -23,7 +22,6 @@ pub const N_COLUMNS: usize = N_STATE
     + N_PARTIAL_ROUNDS
     + (N_HALF_FULL_ROUNDS * N_STATE)
     + N_STATE;
-
 
 pub fn gen_poseidon_chain_trace(
     log_size: u32,

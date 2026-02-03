@@ -1,5 +1,6 @@
 //! Constraint evaluator for Poseidon hash chain computation
 
+use num_traits::One;
 use stwo::core::fields::m31::BaseField;
 use stwo::core::poly::circle::CanonicCoset;
 use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
@@ -8,13 +9,13 @@ use stwo::prover::backend::{Col, Column};
 use stwo::prover::poly::circle::CircleEvaluation;
 use stwo::prover::poly::BitReversedOrder;
 use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
-use stwo_constraint_framework::{EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry, ORIGINAL_TRACE_IDX};
-use num_traits::One;
+use stwo_constraint_framework::{
+    EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry, ORIGINAL_TRACE_IDX,
+};
 
 use crate::poseidon_hash::{
-    apply_external_round_matrix, apply_internal_round_matrix, pow5_expr,
-    EXTERNAL_ROUND_CONSTS, INTERNAL_ROUND_CONSTS,
-    N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
+    apply_external_round_matrix, apply_internal_round_matrix, pow5_expr, EXTERNAL_ROUND_CONSTS,
+    INTERNAL_ROUND_CONSTS, N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
 };
 
 use super::trace::N_CHAIN_ROWS;
@@ -31,8 +32,7 @@ pub struct PoseidonChainEval {
     pub claimed_sum: stwo::core::fields::qm31::SecureField,
 }
 
-impl FrameworkEval for PoseidonChainEval
-{
+impl FrameworkEval for PoseidonChainEval {
     fn log_size(&self) -> u32 {
         self.log_n_rows
     }
@@ -136,16 +136,15 @@ impl FrameworkEval for PoseidonChainEval
             );
         }
 
-        eval.add_constraint(
-            is_step_val * (final_state_curr[0].clone() - initial_state_first_next)
-        );
+        eval.add_constraint(is_step_val * (final_state_curr[0].clone() - initial_state_first_next));
 
         let leaf_value = final_state_curr[0].clone();
 
         // LogUp: yield leaf with configurable multiplicity
         // For deposit chain: multiplicity=2 (consumed by Merkle + Scheduler)
         // For refund chain: multiplicity=1 (consumed by Scheduler only)
-        let multiplicity = is_last_val * E::F::from(BaseField::from_u32_unchecked(self.leaf_multiplicity));
+        let multiplicity =
+            is_last_val * E::F::from(BaseField::from_u32_unchecked(self.leaf_multiplicity));
         eval.add_to_relation(RelationEntry::new(
             &self.leaf_relation,
             multiplicity.into(),

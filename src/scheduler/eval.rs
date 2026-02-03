@@ -1,11 +1,11 @@
 use stwo::core::fields::m31::BaseField;
 use stwo::core::fields::qm31::SecureField;
+use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
 use stwo_constraint_framework::{
     EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry, ORIGINAL_TRACE_IDX,
 };
-use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
 
-use crate::relations::{LeafRelation, RootRelation, RefundLeafRelation};
+use crate::relations::{LeafRelation, RefundLeafRelation, RootRelation};
 
 #[derive(Clone)]
 pub struct PrivacyPoolSchedulerEval {
@@ -40,9 +40,11 @@ impl FrameworkEval for PrivacyPoolSchedulerEval {
 
         eval.add_constraint(is_first.clone() * (computed_root.clone() - expected_root));
         eval.add_constraint(
-            is_first.clone() * (E::F::from(self.amount) - (commitment_amount - refund_amount))
+            is_first.clone() * (E::F::from(self.amount) - (commitment_amount - refund_amount)),
         );
-        eval.add_constraint(is_first.clone() * (E::F::from(self.refund_commitment_hash) - refund_leaf.clone()));
+        eval.add_constraint(
+            is_first.clone() * (E::F::from(self.refund_commitment_hash) - refund_leaf.clone()),
+        );
 
         eval.add_to_relation(RelationEntry::new(
             &self.leaf_relation,
@@ -69,16 +71,18 @@ impl FrameworkEval for PrivacyPoolSchedulerEval {
 
 pub type PrivacyPoolSchedulerComponent = FrameworkComponent<PrivacyPoolSchedulerEval>;
 
-pub fn gen_is_first_column(log_size: u32) -> stwo::prover::poly::circle::CircleEvaluation<
+pub fn gen_is_first_column(
+    log_size: u32,
+) -> stwo::prover::poly::circle::CircleEvaluation<
     stwo::prover::backend::simd::SimdBackend,
     BaseField,
     stwo::prover::poly::BitReversedOrder,
 > {
+    use num_traits::One;
     use stwo::core::poly::circle::CanonicCoset;
     use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
     use stwo::prover::backend::simd::SimdBackend;
     use stwo::prover::backend::{Col, Column};
-    use num_traits::One;
 
     let n_rows = 1 << log_size;
     let mut col = Col::<SimdBackend, BaseField>::zeros(n_rows);

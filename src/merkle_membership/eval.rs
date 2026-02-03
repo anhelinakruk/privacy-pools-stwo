@@ -1,3 +1,4 @@
+use num_traits::One;
 use stwo::core::fields::m31::BaseField;
 use stwo::core::poly::circle::CanonicCoset;
 use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
@@ -6,13 +7,13 @@ use stwo::prover::backend::{Col, Column};
 use stwo::prover::poly::circle::CircleEvaluation;
 use stwo::prover::poly::BitReversedOrder;
 use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
-use stwo_constraint_framework::{EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry, ORIGINAL_TRACE_IDX};
-use num_traits::One;
+use stwo_constraint_framework::{
+    EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry, ORIGINAL_TRACE_IDX,
+};
 
 use crate::poseidon_hash::{
-    apply_external_round_matrix, apply_internal_round_matrix, pow5_expr,
-    EXTERNAL_ROUND_CONSTS, INTERNAL_ROUND_CONSTS,
-    N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
+    apply_external_round_matrix, apply_internal_round_matrix, pow5_expr, EXTERNAL_ROUND_CONSTS,
+    INTERNAL_ROUND_CONSTS, N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
 };
 
 #[derive(Clone)]
@@ -117,7 +118,8 @@ impl FrameworkEval for MerkleMembershipEval {
         // Last 4 full rounds
         for round in 0..N_HALF_FULL_ROUNDS {
             for i in 0..N_STATE {
-                state[i] = state[i].clone() + E::F::from(EXTERNAL_ROUND_CONSTS[round + N_HALF_FULL_ROUNDS][i]);
+                state[i] = state[i].clone()
+                    + E::F::from(EXTERNAL_ROUND_CONSTS[round + N_HALF_FULL_ROUNDS][i]);
             }
             apply_external_round_matrix(&mut state);
             state = std::array::from_fn(|i| pow5_expr(state[i].clone()));
@@ -138,9 +140,7 @@ impl FrameworkEval for MerkleMembershipEval {
             );
         }
 
-        eval.add_constraint(
-            is_step_val * (final_state[0].clone() - initial_state_first_next)
-        );
+        eval.add_constraint(is_step_val * (final_state[0].clone() - initial_state_first_next));
 
         // LogUp: consume current_node_input (column 0)
         // This is always the correct value regardless of index_bit
@@ -153,8 +153,8 @@ impl FrameworkEval for MerkleMembershipEval {
         let root_value = final_state[0].clone();
         eval.add_to_relation(RelationEntry::new(
             &self.root_relation,
-            is_last_val.into(), 
-            &[root_value], 
+            is_last_val.into(),
+            &[root_value],
         ));
 
         eval.finalize_logup_in_pairs();

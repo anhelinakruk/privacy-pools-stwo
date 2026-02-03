@@ -1,29 +1,26 @@
+pub mod fibonacci_example;
 pub mod merkle_membership;
-pub mod poseidon_hash;
+pub mod merkle_tree;
 pub mod poseidon_chain;
+pub mod poseidon_hash;
+pub mod posiedon_hash_new;
+pub mod privacy_pool;
 pub mod relations;
 pub mod scheduler;
-pub mod privacy_pool;
 
 pub use merkle_membership::{
-    MerkleMembershipComponent, MerkleMembershipEval,
-    MerkleInputs, MerkleOutputs,
-    gen_merkle_trace, gen_merkle_is_active_column, gen_merkle_is_step_column,
-    gen_merkle_is_first_column, gen_merkle_is_last_column,
-    merkle_is_active_column_id, merkle_is_step_column_id,
-    merkle_is_first_column_id, merkle_is_last_column_id,
+    gen_merkle_is_active_column, gen_merkle_is_first_column, gen_merkle_is_last_column,
+    gen_merkle_is_step_column, gen_merkle_trace, merkle_is_active_column_id,
+    merkle_is_first_column_id, merkle_is_last_column_id, merkle_is_step_column_id, MerkleInputs,
+    MerkleMembershipComponent, MerkleMembershipEval, MerkleOutputs,
 };
 pub use poseidon_chain::{
-    PoseidonChainComponent, PoseidonChainEval,
-    ChainInputs, ChainOutputs,
-    ChainStatement0, ChainStatement1,
-    gen_poseidon_chain_trace, gen_is_active_column, gen_is_step_column, gen_is_last_column,
-    is_active_column_id, is_step_column_id, is_last_column_id,
+    gen_is_active_column, gen_is_last_column, gen_is_step_column, gen_poseidon_chain_trace,
+    is_active_column_id, is_last_column_id, is_step_column_id, ChainInputs, ChainOutputs,
+    ChainStatement0, ChainStatement1, PoseidonChainComponent, PoseidonChainEval,
 };
 pub use relations::{LeafRelation, RootRelation};
 pub use scheduler::{
-    PrivacyPoolSchedulerComponent, PrivacyPoolSchedulerEval,
-    gen_scheduler_trace, gen_scheduler_interaction_trace,
-    gen_is_first_column, is_first_column_id,
-    SchedulerStatement,
+    gen_is_first_column, gen_scheduler_interaction_trace, gen_scheduler_trace, is_first_column_id,
+    PrivacyPoolSchedulerComponent, PrivacyPoolSchedulerEval, SchedulerStatement,
 };

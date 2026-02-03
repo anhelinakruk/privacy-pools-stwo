@@ -1,12 +1,12 @@
 pub mod eval;
-pub mod trace;
 pub mod logup;
+pub mod trace;
 pub mod types;
 
 pub use eval::{
-    PrivacyPoolSchedulerEval, PrivacyPoolSchedulerComponent,
-    gen_is_first_column, is_first_column_id,
+    gen_is_first_column, is_first_column_id, PrivacyPoolSchedulerComponent,
+    PrivacyPoolSchedulerEval,
 };
-pub use trace::gen_scheduler_trace;
 pub use logup::gen_scheduler_interaction_trace;
+pub use trace::gen_scheduler_trace;
 pub use types::SchedulerStatement;
