@@ -16,7 +16,7 @@ mod tests {
         use stwo::core::channel::Blake2sChannel;
         use stwo::core::pcs::{CommitmentSchemeVerifier, PcsConfig};
         use stwo::core::poly::circle::CanonicCoset;
-        use stwo::core::vcs_lifted::blake2_merkle::Blake2sMerkleChannel;
+        use stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
         use stwo::prover::poly::circle::PolyOps;
         use stwo::prover::{prove, CommitmentSchemeProver};
         use stwo_constraint_framework::TraceLocationAllocator;

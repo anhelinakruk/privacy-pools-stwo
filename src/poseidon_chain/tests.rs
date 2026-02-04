@@ -3,6 +3,7 @@ mod tests {
     use stwo::core::fields::m31::BaseField;
     use stwo::prover::backend::simd::SimdBackend;
     use stwo::prover::backend::{Col, Column};
+    use stwo::prover::{prove, CommitmentSchemeProver};
     use stwo_constraint_framework::TraceLocationAllocator;
 
     use crate::poseidon_chain::{
@@ -67,10 +68,10 @@ mod tests {
         use stwo::core::channel::Blake2sChannel;
         use stwo::core::pcs::{CommitmentSchemeVerifier, PcsConfig};
         use stwo::core::poly::circle::CanonicCoset;
-        use stwo::core::vcs_lifted::blake2_merkle::Blake2sMerkleChannel;
+        use stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
         use stwo::prover::backend::simd::SimdBackend;
         use stwo::prover::poly::circle::PolyOps;
-        use stwo::prover::{prove, CommitmentSchemeProver};
+        // use stwo::prover::{prove, CommitmentSchemeProver};
 
         const LOG_SIZE: u32 = 5;
 

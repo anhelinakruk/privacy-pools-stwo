@@ -44,8 +44,9 @@ pub fn gen_merkle_trace(
         (1 << depth) - 1
     );
 
-    // 175 columns: 1 (current_node_input) + 174 (Poseidon permutation)
+    // 175 columns: 1 (index_bit) + 174 (Poseidon permutation)
     // Poseidon: 16 + 64 + 14 + 64 + 16 = 174
+    // NOTE: current_node is encoded in initial_state[index_bit], no separate column needed
     const N_POSEIDON_COLUMNS: usize = N_STATE
         + (N_HALF_FULL_ROUNDS * N_STATE)
         + N_PARTIAL_ROUNDS
@@ -74,9 +75,9 @@ pub fn gen_merkle_trace(
             let index_bit = (inputs.index >> level) & 1;
             let sibling = inputs.siblings[level];
 
-            // Column 0: Store current_node (the input to this level)
-            // This is the value that should be consumed by LogUp
-            trace[0].set(row, current_node);
+            // Column 0: Store index_bit (used for dynamic chain constraint and LogUp)
+            // NOTE: current_node is not stored separately - it's at initial_state[index_bit]
+            trace[0].set(row, BaseField::from_u32_unchecked(index_bit as u32));
 
             // Determine left and right children based on index bit
             let (left_child, right_child) = if index_bit == 0 {

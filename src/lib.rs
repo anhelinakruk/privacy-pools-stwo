@@ -1,9 +1,6 @@
-pub mod fibonacci_example;
 pub mod merkle_membership;
-pub mod merkle_tree;
 pub mod poseidon_chain;
 pub mod poseidon_hash;
-pub mod posiedon_hash_new;
 pub mod privacy_pool;
 pub mod relations;
 pub mod scheduler;

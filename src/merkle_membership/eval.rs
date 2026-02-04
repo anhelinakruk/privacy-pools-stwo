@@ -44,26 +44,35 @@ impl FrameworkEval for MerkleMembershipEval {
         let is_first_val = eval.get_preprocessed_column(self.is_first_id.clone());
         let is_last_val = eval.get_preprocessed_column(self.is_last_id.clone());
 
-        // Column 0: current_node_input - the actual input value for LogUp
-        // Read with offset [0] only (no chaining needed for this column)
-        let current_node_input = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+        // Column 0: index_bit - read from both current and next row
+        // We need index_bit from next row for dynamic chain constraint
+        let [index_bit, index_bit_next] = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0, 1]);
 
-        // Columns 1-16: initial_state (Poseidon input)
-        // For chaining, we need initial_state[0] (col 1) from BOTH current and next row
-        // So we read col 1 with offsets [0, 1] in ONE call (like Fibonacci does!)
+        // Constraint: index_bit must be 0 or 1
+        // index_bit * (index_bit - 1) == 0
+        eval.add_constraint(
+            is_active_val.clone() * index_bit.clone() * (index_bit.clone() - E::F::one()),
+        );
+
+        // Columns 1-16: initial_state (Poseidon input) - read from both current and next row
+        // We need initial_state[0] and initial_state[1] from the next row for dynamic chain constraint
         let [initial_state_first_curr, initial_state_first_next] =
             eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0, 1]);
+        let [initial_state_second_curr, initial_state_second_next] =
+            eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0, 1]);
 
-        // Read the rest of initial_state (cols 2-16) normally with offset [0]
+        // Read the rest of initial_state (cols 3-16) from current row only
         let initial_state: [E::F; N_STATE] = std::array::from_fn(|i| {
             if i == 0 {
                 initial_state_first_curr.clone()
+            } else if i == 1 {
+                initial_state_second_curr.clone()
             } else {
                 eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone()
             }
         });
 
-        // Constraint: state[2..16] must be zero (capacity) - masked by is_active
+        // Constraint: state[2..16] must be zero (capacity)
         for i in 2..N_STATE {
             eval.add_constraint(is_active_val.clone() * initial_state[i].clone());
         }
@@ -140,14 +149,32 @@ impl FrameworkEval for MerkleMembershipEval {
             );
         }
 
-        eval.add_constraint(is_step_val * (final_state[0].clone() - initial_state_first_next));
+        // Dynamic chain constraint: output[i] must equal initial_state[index_bit[i+1]][i+1]
+        // This allows current_node to go to either left (index_bit=0) or right (index_bit=1)
+        // Mathematical form:
+        //   (1 - index_bit[next]) * (output - initial_state[0][next]) +
+        //        index_bit[next]  * (output - initial_state[1][next]) == 0
+        // When index_bit[next]=0: output must equal initial_state[0][next] (left)
+        // When index_bit[next]=1: output must equal initial_state[1][next] (right)
+        // Note: index_bit_next was already read at the beginning along with index_bit
 
-        // LogUp: consume current_node_input (column 0)
-        // This is always the correct value regardless of index_bit
+        let chain_constraint = (E::F::one() - index_bit_next.clone())
+            * (final_state[0].clone() - initial_state_first_next)
+            + index_bit_next * (final_state[0].clone() - initial_state_second_next);
+
+        eval.add_constraint(is_step_val * chain_constraint);
+
+        // LogUp: consume current_node (dynamically selected from initial_state)
+        // current_node is at initial_state[index_bit]:
+        //   - When index_bit=0: current_node is at initial_state[0] (left)
+        //   - When index_bit=1: current_node is at initial_state[1] (right)
+        let current_node_value = (E::F::one() - index_bit.clone()) * initial_state[0].clone()
+            + index_bit.clone() * initial_state[1].clone();
+
         eval.add_to_relation(RelationEntry::new(
             &self.leaf_relation,
             (-is_first_val.clone()).into(),
-            &[current_node_input],
+            &[current_node_value],
         ));
 
         let root_value = final_state[0].clone();

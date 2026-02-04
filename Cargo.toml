@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-stwo = { git = "https://github.com/starkware-libs/stwo", features = ["prover"], rev = "0bcb6836" }
-std-shims = { git = "https://github.com/starkware-libs/stwo", features = ["std"], rev = "0bcb6836" }
-stwo-constraint-framework = { git = "https://github.com/starkware-libs/stwo", features = ["prover", "std"], rev = "0bcb6836" }
-stwo-circuits = { git = "ssh://git@github.com/neotheprogramist/stwo-circuits.git", branch = "main" }
+stwo = { git = "https://github.com/piotr-stec/stwo-fork-keccak", features = ["prover"], branch = "channel/solidity" }
+std-shims = { git = "https://github.com/piotr-stec/stwo-fork-keccak", features = ["std"],branch = "channel/solidity"  }
+stwo-constraint-framework = { git = "https://github.com/piotr-stec/stwo-fork-keccak", features = ["prover", "std"], branch = "channel/solidity" }
 num-traits = "0.2"
 thiserror = { version = "2.0.12", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
@@ -17,3 +16,6 @@ serde_json = "1.0"
 alloy = { version = "0.8", features = ["full", "node-bindings", "rpc-types", "sol-types"] }
 tokio = { version = "1.0", features = ["full"] }
 itertools = "0.13"
+
+[dev-dependencies]
+zkhash = { git = "https://github.com/AntoineFONDEUR/poseidon2.git", branch = "poseidon2-M31" }

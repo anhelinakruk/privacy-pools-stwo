@@ -14,8 +14,11 @@ use crate::{LeafRelation, RootRelation};
 
 use super::trace::ColumnVec;
 
-const CURRENT_NODE_INPUT_COL: usize = 0;
-
+// Column indices after optimization (removed current_node_input)
+const INDEX_BIT_COL: usize = 0;
+const INITIAL_STATE_0_COL: usize = 1; // initial_state[0] (left)
+const INITIAL_STATE_1_COL: usize = 2; // initial_state[1] (right)
+                                      // final_state[0] is at: 1 (initial_state start) + 16 (initial_state) + 64 (full1) + 14 (partial) + 64 (full2) = 159
 const FINAL_STATE_0_COL: usize = 159;
 
 pub fn gen_merkle_membership_interaction_trace(
@@ -50,10 +53,18 @@ pub fn gen_merkle_membership_interaction_trace(
         let mut col_gen = logup_gen.new_col();
 
         for vec_row in 0..(1 << (log_size - LOG_N_LANES)) {
-            // Read leaf value from current_node_input column (column 0)
-            // This is always the correct input value, regardless of index_bit
-            let leaf_value: PackedSecureField = trace[CURRENT_NODE_INPUT_COL].data[vec_row].into();
-            let leaf_denom: PackedSecureField = leaf_relation.combine(&[leaf_value]);
+            // Dynamically compute current_node from initial_state[index_bit]
+            // When index_bit=0: current_node = initial_state[0] (left)
+            // When index_bit=1: current_node = initial_state[1] (right)
+            let index_bit_value: PackedSecureField = trace[INDEX_BIT_COL].data[vec_row].into();
+            let left_value: PackedSecureField = trace[INITIAL_STATE_0_COL].data[vec_row].into();
+            let right_value: PackedSecureField = trace[INITIAL_STATE_1_COL].data[vec_row].into();
+
+            let one = PackedSecureField::one();
+            let current_node_value =
+                (one - index_bit_value) * left_value + index_bit_value * right_value;
+
+            let leaf_denom: PackedSecureField = leaf_relation.combine(&[current_node_value]);
 
             // Read root value (final_state[0])
             let root_value: PackedSecureField = trace[FINAL_STATE_0_COL].data[vec_row].into();
