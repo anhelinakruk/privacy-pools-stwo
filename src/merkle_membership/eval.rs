@@ -149,25 +149,12 @@ impl FrameworkEval for MerkleMembershipEval {
             );
         }
 
-        // Dynamic chain constraint: output[i] must equal initial_state[index_bit[i+1]][i+1]
-        // This allows current_node to go to either left (index_bit=0) or right (index_bit=1)
-        // Mathematical form:
-        //   (1 - index_bit[next]) * (output - initial_state[0][next]) +
-        //        index_bit[next]  * (output - initial_state[1][next]) == 0
-        // When index_bit[next]=0: output must equal initial_state[0][next] (left)
-        // When index_bit[next]=1: output must equal initial_state[1][next] (right)
-        // Note: index_bit_next was already read at the beginning along with index_bit
-
         let chain_constraint = (E::F::one() - index_bit_next.clone())
             * (final_state[0].clone() - initial_state_first_next)
             + index_bit_next * (final_state[0].clone() - initial_state_second_next);
 
         eval.add_constraint(is_step_val * chain_constraint);
 
-        // LogUp: consume current_node (dynamically selected from initial_state)
-        // current_node is at initial_state[index_bit]:
-        //   - When index_bit=0: current_node is at initial_state[0] (left)
-        //   - When index_bit=1: current_node is at initial_state[1] (right)
         let current_node_value = (E::F::one() - index_bit.clone()) * initial_state[0].clone()
             + index_bit.clone() * initial_state[1].clone();
 
