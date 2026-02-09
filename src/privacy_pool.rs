@@ -321,10 +321,11 @@ mod tests {
             verifier_channel,
         );
 
-        // Commit base traces (174 deposit + 174 refund + 175 merkle + 6 scheduler = 529 columns)
-        let mut base_trace_bounds = vec![LOG_SIZE; 174]; // Deposit chain
-        base_trace_bounds.extend(vec![LOG_SIZE; 174]); // Refund chain
-        base_trace_bounds.extend(vec![LOG_SIZE; 175]); // MerkleMembership (175 = 1 index_bit + 174 Poseidon, optimized: no current_node_input)
+        // Commit base traces (666 deposit + 666 refund + 667 merkle + 6 scheduler = 2005 columns)
+        // Security fix: partial rounds now include internal matrix verification (19 cols per round)
+        let mut base_trace_bounds = vec![LOG_SIZE; 666]; // Deposit chain (Cairo-m with security fix)
+        base_trace_bounds.extend(vec![LOG_SIZE; 666]); // Refund chain (Cairo-m with security fix)
+        base_trace_bounds.extend(vec![LOG_SIZE; 667]); // MerkleMembership (1 index_bit + 666 Poseidon)
         base_trace_bounds.extend(vec![LOG_SIZE; 6]); // Scheduler (6 columns: computed_root, expected_root, commitment_amount, refund_amount, deposit_leaf, refund_leaf)
         commitment_scheme_verifier.commit(
             proof.commitments[1],

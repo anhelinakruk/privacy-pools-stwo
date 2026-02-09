@@ -14,12 +14,15 @@ use crate::{LeafRelation, RootRelation};
 
 use super::trace::ColumnVec;
 
-// Column indices after optimization (removed current_node_input)
+// Column indices - Cairo-m style with security fix
 const INDEX_BIT_COL: usize = 0;
 const INITIAL_STATE_0_COL: usize = 1; // initial_state[0] (left)
 const INITIAL_STATE_1_COL: usize = 2; // initial_state[1] (right)
-                                      // final_state[0] is at: 1 (initial_state start) + 16 (initial_state) + 64 (full1) + 14 (partial) + 64 (full2) = 159
-const FINAL_STATE_0_COL: usize = 159;
+// Cairo-m style with security fix: final_state[0] is in the last round's step3, first element
+// Layout: 1 (index_bit) + 16 (initial) + 192 (first_half) + 266 (partial with matrix) + 192 (second_half) = 667 total
+// Partial rounds now have 4 steps: x^2(1), x^4(1), x^5(1), after_matrix(16) = 19 cols per round
+// Last round step3 starts at column 651 (651-666 for all 16 elements)
+const FINAL_STATE_0_COL: usize = 651;
 
 pub fn gen_merkle_membership_interaction_trace(
     trace: &ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
@@ -66,7 +69,7 @@ pub fn gen_merkle_membership_interaction_trace(
 
             let leaf_denom: PackedSecureField = leaf_relation.combine(&[current_node_value]);
 
-            // Read root value (final_state[0])
+            // Read root value (final_state[0] at column 427)
             let root_value: PackedSecureField = trace[FINAL_STATE_0_COL].data[vec_row].into();
             let root_denom: PackedSecureField = root_relation.combine(&[root_value]);
 

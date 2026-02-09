@@ -7,7 +7,7 @@ use stwo::prover::poly::circle::CircleEvaluation;
 use stwo::prover::poly::BitReversedOrder;
 
 use crate::poseidon_hash::{
-    apply_external_round_matrix, apply_internal_round_matrix, pow5, EXTERNAL_ROUND_CONSTS,
+    apply_external_round_matrix, apply_internal_round_matrix, EXTERNAL_ROUND_CONSTS,
     INTERNAL_ROUND_CONSTS, N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
 };
 
@@ -17,11 +17,13 @@ pub type ColumnVec<T> = Vec<T>;
 
 pub const N_CHAIN_ROWS: usize = 3;
 
-pub const N_COLUMNS: usize = N_STATE
-    + (N_HALF_FULL_ROUNDS * N_STATE)
-    + N_PARTIAL_ROUNDS
-    + (N_HALF_FULL_ROUNDS * N_STATE)
-    + N_STATE;
+// Cairo-m style: 3 intermediate values per round + matrix verification
+// - Full rounds: squared_1, squared_2, final_after_sbox_and_matrix (3 * 16 elements)
+// - Partial rounds: squared_1(1), squared_2(1), sbox_result(1), after_matrix(16) = 19 elements
+pub const N_COLUMNS: usize = N_STATE // initial_state
+    + (N_HALF_FULL_ROUNDS * 3 * N_STATE) // first_half_full_rounds
+    + (N_PARTIAL_ROUNDS * (3 + N_STATE)) // partial_rounds: 3 S-box steps + 16 after matrix
+    + (N_HALF_FULL_ROUNDS * 3 * N_STATE); // second_half_full_rounds
 
 pub fn gen_poseidon_chain_trace(
     log_size: u32,
@@ -76,49 +78,114 @@ pub fn fill_poseidon_row(
         col_index += 1;
     }
 
-    // First 4 full rounds
+    // Apply initial external round matrix (Poseidon2 standard)
+    apply_external_round_matrix(&mut state);
+
+    // First 4 full rounds - Cairo-m style with 3 intermediate values per round
     for round in 0..N_HALF_FULL_ROUNDS {
+        // Add round constants
         for i in 0..N_STATE {
             state[i] = state[i] + EXTERNAL_ROUND_CONSTS[round][i];
         }
-        apply_external_round_matrix(&mut state);
-        state = std::array::from_fn(|i| pow5(state[i]));
+        let initial_state = state;
 
+        // Step 1: Square the state (x^2) and write to trace
+        state = std::array::from_fn(|i| {
+            let squared = state[i] * state[i];
+            squared
+        });
+        for i in 0..N_STATE {
+            trace[col_index].set(row, state[i]);
+            col_index += 1;
+        }
+
+        // Step 2: Square again (x^4) and write to trace
+        state = std::array::from_fn(|i| {
+            let squared = state[i] * state[i];
+            squared
+        });
+        for i in 0..N_STATE {
+            trace[col_index].set(row, state[i]);
+            col_index += 1;
+        }
+
+        // Step 3: Multiply by initial state (x^5) and apply external matrix
+        state = std::array::from_fn(|i| state[i] * initial_state[i]);
+        apply_external_round_matrix(&mut state);
         for i in 0..N_STATE {
             trace[col_index].set(row, state[i]);
             col_index += 1;
         }
     }
 
-    // Partial rounds
+    // Partial rounds - Cairo-m style with 3 intermediate values per round
     for round in 0..N_PARTIAL_ROUNDS {
+        // Add round constant (only to first element)
         state[0] = state[0] + INTERNAL_ROUND_CONSTS[round];
-        apply_internal_round_matrix(&mut state);
-        state[0] = pow5(state[0]);
+        let initial_state_0 = state[0];
 
+        // Step 1: Square the first element (x^2) and write to trace
+        state[0] = state[0] * state[0];
         trace[col_index].set(row, state[0]);
         col_index += 1;
+
+        // Step 2: Square again (x^4) and write to trace
+        state[0] = state[0] * state[0];
+        trace[col_index].set(row, state[0]);
+        col_index += 1;
+
+        // Step 3: Multiply by initial state[0] (x^5) and write to trace
+        state[0] = state[0] * initial_state_0;
+        trace[col_index].set(row, state[0]);
+        col_index += 1;
+
+        // Step 4: Apply internal round matrix and write ALL 16 elements to trace
+        // 🔒 SECURITY: This prevents soundness-breaking attacks on partial rounds
+        apply_internal_round_matrix(&mut state);
+        for i in 0..N_STATE {
+            trace[col_index].set(row, state[i]);
+            col_index += 1;
+        }
     }
 
-    // Last 4 full rounds
+    // Last 4 full rounds - Cairo-m style with 3 intermediate values per round
     for round in 0..N_HALF_FULL_ROUNDS {
+        // Add round constants
         for i in 0..N_STATE {
             state[i] = state[i] + EXTERNAL_ROUND_CONSTS[round + N_HALF_FULL_ROUNDS][i];
         }
-        apply_external_round_matrix(&mut state);
-        state = std::array::from_fn(|i| pow5(state[i]));
+        let initial_state = state;
 
+        // Step 1: Square the state (x^2) and write to trace
+        state = std::array::from_fn(|i| {
+            let squared = state[i] * state[i];
+            squared
+        });
+        for i in 0..N_STATE {
+            trace[col_index].set(row, state[i]);
+            col_index += 1;
+        }
+
+        // Step 2: Square again (x^4) and write to trace
+        state = std::array::from_fn(|i| {
+            let squared = state[i] * state[i];
+            squared
+        });
+        for i in 0..N_STATE {
+            trace[col_index].set(row, state[i]);
+            col_index += 1;
+        }
+
+        // Step 3: Multiply by initial state (x^5) and apply external matrix
+        state = std::array::from_fn(|i| state[i] * initial_state[i]);
+        apply_external_round_matrix(&mut state);
         for i in 0..N_STATE {
             trace[col_index].set(row, state[i]);
             col_index += 1;
         }
     }
 
-    // Write final_state
-    for i in 0..N_STATE {
-        trace[col_index].set(row, state[i]);
-        col_index += 1;
-    }
-
+    // Final state is already written in the last round
+    // Return the first element (leaf/digest)
     state[0]
 }

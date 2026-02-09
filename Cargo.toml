@@ -19,3 +19,8 @@ itertools = "0.13"
 
 [dev-dependencies]
 zkhash = { git = "https://github.com/AntoineFONDEUR/poseidon2.git", branch = "poseidon2-M31" }
+eyre = "0.6"
+
+[[test]]
+name = "e2e"
+path = "e2e/mod.rs"

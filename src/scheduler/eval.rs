@@ -39,9 +39,42 @@ impl FrameworkEval for PrivacyPoolSchedulerEval {
         let refund_leaf = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
 
         eval.add_constraint(is_first.clone() * (computed_root.clone() - expected_root));
+
+        // 🔒 SECURITY WARNING: Amount underflow vulnerability (PARTIALLY MITIGATED)
+        //
+        // This constraint verifies: amount == commitment_amount - refund_amount
+        //
+        // VULNERABILITY: In M31 field arithmetic, if refund_amount > commitment_amount,
+        // the subtraction wraps around modulo (2^31-1). For example:
+        //   commitment_amount = 100
+        //   refund_amount = 200
+        //   Result = 100 - 200 mod (2^31-1) = 2147483547
+        //
+        // If amount = 2147483547, this constraint would PASS, allowing an attacker
+        // to withdraw more funds than deposited!
+        //
+        // MITIGATIONS IN PLACE:
+        // 1. ✅ Runtime check in trace generation (scheduler/trace.rs:30-35)
+        //    - Prevents honest prover from generating invalid proofs
+        //    - But doesn't protect against malicious prover who modifies the code
+        //
+        // 2. ⚠️  Smart contract MUST verify commitment_amount >= refund_amount
+        //    - This is the primary security boundary
+        //    - Circuit cannot fully protect against this without range checks
+        //
+        // TODO: Add proper range check constraint to verify:
+        //   - commitment_amount - refund_amount is in range [0, MAX_SAFE_AMOUNT]
+        //   - This requires additional columns and lookup tables
+        //   - See: https://github.com/privacy-pools/issues/range-check
+        //
+        // DEPLOYMENT CHECKLIST:
+        // [ ] Smart contract verifies commitment_amount >= refund_amount
+        // [ ] Smart contract verifies amounts are reasonable (< MAX_DEPOSIT)
+        // [ ] Add integration tests for underflow scenarios
         eval.add_constraint(
             is_first.clone() * (E::F::from(self.amount) - (commitment_amount - refund_amount)),
         );
+
         eval.add_constraint(
             is_first.clone() * (E::F::from(self.refund_commitment_hash) - refund_leaf.clone()),
         );

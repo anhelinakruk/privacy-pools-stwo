@@ -12,7 +12,7 @@ use stwo_constraint_framework::{
 };
 
 use crate::poseidon_hash::{
-    apply_external_round_matrix, apply_internal_round_matrix, pow5_expr, EXTERNAL_ROUND_CONSTS,
+    apply_external_round_matrix, apply_internal_round_matrix, EXTERNAL_ROUND_CONSTS,
     INTERNAL_ROUND_CONSTS, N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
 };
 
@@ -77,81 +77,140 @@ impl FrameworkEval for MerkleMembershipEval {
             eval.add_constraint(is_active_val.clone() * initial_state[i].clone());
         }
 
-        // Read intermediate states
-        let intermediate_full1: [[E::F; N_STATE]; N_HALF_FULL_ROUNDS] = std::array::from_fn(|_| {
-            std::array::from_fn(|_| eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone())
-        });
-
-        let intermediate_partial: [E::F; N_PARTIAL_ROUNDS] =
-            std::array::from_fn(|_| eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone());
-
-        let intermediate_full2: [[E::F; N_STATE]; N_HALF_FULL_ROUNDS] = std::array::from_fn(|_| {
-            std::array::from_fn(|_| eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone())
-        });
-
-        let final_state: [E::F; N_STATE] =
-            std::array::from_fn(|_| eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone());
-
-        // Poseidon2 permutation constraints
+        // Poseidon2 permutation constraints - Cairo-m style
         let mut state = initial_state.clone();
 
-        // First 4 full rounds
+        // Apply initial external round matrix (Poseidon2 standard)
+        apply_external_round_matrix(&mut state);
+
+        // First 4 full rounds - Cairo-m style with step-by-step constraints
         for round in 0..N_HALF_FULL_ROUNDS {
+            // Add round constants
             for i in 0..N_STATE {
                 state[i] = state[i].clone() + E::F::from(EXTERNAL_ROUND_CONSTS[round][i]);
             }
-            apply_external_round_matrix(&mut state);
-            state = std::array::from_fn(|i| pow5_expr(state[i].clone()));
+            let initial_state_round = state.clone();
 
+            // Step 1: Square the state (x^2)
+            state = std::array::from_fn(|i| state[i].clone() * state[i].clone());
             for i in 0..N_STATE {
+                let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
                 eval.add_constraint(
-                    is_active_val.clone()
-                        * (state[i].clone() - intermediate_full1[round][i].clone()),
+                    is_active_val.clone() * (state[i].clone() - mask.clone()),
                 );
+                state[i] = mask; // Replace with trace value!
             }
-            state = intermediate_full1[round].clone();
+
+            // Step 2: Square again (x^4)
+            state = std::array::from_fn(|i| state[i].clone() * state[i].clone());
+            for i in 0..N_STATE {
+                let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+                eval.add_constraint(
+                    is_active_val.clone() * (state[i].clone() - mask.clone()),
+                );
+                state[i] = mask; // Replace with trace value!
+            }
+
+            // Step 3: Multiply by initial state (x^5) and apply external matrix
+            state = std::array::from_fn(|i| state[i].clone() * initial_state_round[i].clone());
+            apply_external_round_matrix(&mut state);
+            for i in 0..N_STATE {
+                let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+                eval.add_constraint(
+                    is_active_val.clone() * (state[i].clone() - mask.clone()),
+                );
+                state[i] = mask; // Replace with trace value!
+            }
         }
 
-        // 14 partial rounds
+        // Partial rounds - Cairo-m style with step-by-step constraints
         for round in 0..N_PARTIAL_ROUNDS {
+            // Add round constant (only to first element)
             state[0] = state[0].clone() + E::F::from(INTERNAL_ROUND_CONSTS[round]);
-            apply_internal_round_matrix(&mut state);
-            state[0] = pow5_expr(state[0].clone());
+            let initial_state_0 = state[0].clone();
 
+            // Step 1: Square the first element (x^2)
+            state[0] = state[0].clone() * state[0].clone();
+            let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
             eval.add_constraint(
-                is_active_val.clone() * (state[0].clone() - intermediate_partial[round].clone()),
+                is_active_val.clone() * (state[0].clone() - mask.clone()),
             );
-            state[0] = intermediate_partial[round].clone();
+            state[0] = mask; // Replace with trace value!
+
+            // Step 2: Square again (x^4)
+            state[0] = state[0].clone() * state[0].clone();
+            let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+            eval.add_constraint(
+                is_active_val.clone() * (state[0].clone() - mask.clone()),
+            );
+            state[0] = mask; // Replace with trace value!
+
+            // Step 3: Multiply by initial state[0] (x^5)
+            state[0] = state[0].clone() * initial_state_0;
+            let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+            eval.add_constraint(
+                is_active_val.clone() * (state[0].clone() - mask.clone()),
+            );
+            state[0] = mask; // Replace with trace value!
+
+            // Step 4: Apply internal round matrix and VERIFY all 16 elements
+            // 🔒 SECURITY FIX: Constrain matrix output to prevent soundness-breaking attacks
+            apply_internal_round_matrix(&mut state);
+            for i in 0..N_STATE {
+                let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+                eval.add_constraint(
+                    is_active_val.clone() * (state[i].clone() - mask.clone()),
+                );
+                state[i] = mask; // Replace with trace value!
+            }
         }
 
-        // Last 4 full rounds
+        // Last 4 full rounds - Cairo-m style with step-by-step constraints
         for round in 0..N_HALF_FULL_ROUNDS {
+            // Add round constants
             for i in 0..N_STATE {
                 state[i] = state[i].clone()
                     + E::F::from(EXTERNAL_ROUND_CONSTS[round + N_HALF_FULL_ROUNDS][i]);
             }
-            apply_external_round_matrix(&mut state);
-            state = std::array::from_fn(|i| pow5_expr(state[i].clone()));
+            let initial_state_round = state.clone();
 
+            // Step 1: Square the state (x^2)
+            state = std::array::from_fn(|i| state[i].clone() * state[i].clone());
             for i in 0..N_STATE {
+                let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
                 eval.add_constraint(
-                    is_active_val.clone()
-                        * (state[i].clone() - intermediate_full2[round][i].clone()),
+                    is_active_val.clone() * (state[i].clone() - mask.clone()),
                 );
+                state[i] = mask; // Replace with trace value!
             }
-            state = intermediate_full2[round].clone();
+
+            // Step 2: Square again (x^4)
+            state = std::array::from_fn(|i| state[i].clone() * state[i].clone());
+            for i in 0..N_STATE {
+                let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+                eval.add_constraint(
+                    is_active_val.clone() * (state[i].clone() - mask.clone()),
+                );
+                state[i] = mask; // Replace with trace value!
+            }
+
+            // Step 3: Multiply by initial state (x^5) and apply external matrix
+            state = std::array::from_fn(|i| state[i].clone() * initial_state_round[i].clone());
+            apply_external_round_matrix(&mut state);
+            for i in 0..N_STATE {
+                let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+                eval.add_constraint(
+                    is_active_val.clone() * (state[i].clone() - mask.clone()),
+                );
+                state[i] = mask; // Replace with trace value!
+            }
         }
 
-        // Final state consistency - masked by is_active
-        for i in 0..N_STATE {
-            eval.add_constraint(
-                is_active_val.clone() * (final_state[i].clone() - state[i].clone()),
-            );
-        }
-
+        // Final state is already in `state` after last round
+        // Chain constraint: next row's initial_state should match current row's hash output
         let chain_constraint = (E::F::one() - index_bit_next.clone())
-            * (final_state[0].clone() - initial_state_first_next)
-            + index_bit_next * (final_state[0].clone() - initial_state_second_next);
+            * (state[0].clone() - initial_state_first_next)
+            + index_bit_next * (state[0].clone() - initial_state_second_next);
 
         eval.add_constraint(is_step_val * chain_constraint);
 
@@ -164,7 +223,7 @@ impl FrameworkEval for MerkleMembershipEval {
             &[current_node_value],
         ));
 
-        let root_value = final_state[0].clone();
+        let root_value = state[0].clone();
         eval.add_to_relation(RelationEntry::new(
             &self.root_relation,
             is_last_val.into(),

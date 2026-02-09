@@ -148,8 +148,9 @@ mod tests {
             verifier_channel,
         );
 
-        // 175 columns: 1 (current_node_input) + 174 (Poseidon permutation)
-        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 175];
+        // 667 columns with security fix: 1 (index_bit) + 666 (Poseidon Cairo-m style)
+        // 16 initial + 192 first_half + 266 partial (with matrix) + 192 second_half
+        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 667];
         commitment_scheme_verifier.commit(
             proof.commitments[1],
             &base_trace_bounds,

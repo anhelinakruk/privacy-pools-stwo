@@ -187,8 +187,9 @@ mod tests {
             verifier_channel,
         );
 
-        // Commit base trace (174 columns, all at LOG_SIZE)
-        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 174];
+        // Commit base trace (666 columns with security fix, all at LOG_SIZE)
+        // 16 initial + 192 first_half + 266 partial (with matrix) + 192 second_half
+        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 666];
         commitment_scheme_verifier.commit(
             proof.commitments[1],
             &base_trace_bounds,
