@@ -4,12 +4,10 @@ mod tests {
     use stwo::prover::backend::simd::SimdBackend;
 
     use crate::merkle_membership::{
-        gen_merkle_is_active_column, gen_merkle_is_step_column,
-        gen_merkle_is_first_column, gen_merkle_is_last_column,
-        gen_merkle_trace, merkle_is_active_column_id, merkle_is_step_column_id,
-        merkle_is_first_column_id, merkle_is_last_column_id,
-        gen_merkle_membership_interaction_trace,
-        MerkleInputs, MerkleMembershipComponent, MerkleMembershipEval,
+        gen_merkle_is_active_column, gen_merkle_is_first_column, gen_merkle_is_last_column,
+        gen_merkle_is_step_column, gen_merkle_membership_interaction_trace, gen_merkle_trace,
+        merkle_is_active_column_id, merkle_is_first_column_id, merkle_is_last_column_id,
+        merkle_is_step_column_id, MerkleInputs, MerkleMembershipComponent, MerkleMembershipEval,
     };
     use crate::relations::{LeafRelation, RootRelation};
 
@@ -33,15 +31,18 @@ mod tests {
             BaseField::from_u32_unchecked(55555),
         ];
         let index = 1;
-        let expected_root = BaseField::from_u32_unchecked(0); 
+        let expected_root = BaseField::from_u32_unchecked(0);
 
         let inputs = MerkleInputs::new(leaf, siblings.clone(), index, expected_root);
-        const LOG_SIZE: u32 = 5; // 32 rows 
+        const LOG_SIZE: u32 = 5; // 32 rows
 
         println!("Input:");
         println!("  Leaf: {}", leaf.0);
         println!("  Index: {} (binary: {:03b})", index, index);
-        println!("  Siblings: {:?}", siblings.iter().map(|s| s.0).collect::<Vec<_>>());
+        println!(
+            "  Siblings: {:?}",
+            siblings.iter().map(|s| s.0).collect::<Vec<_>>()
+        );
         println!("  Depth: {}", inputs.depth());
 
         let (trace, computed_root) = gen_merkle_trace(LOG_SIZE, &inputs);
@@ -69,7 +70,15 @@ mod tests {
         let root_relation = RootRelation::draw(prover_channel);
 
         let mut tree_builder = commitment_scheme.tree_builder();
-        tree_builder.extend_evals([is_active_col.clone(), is_step_col.clone(), is_first_col.clone(), is_last_col.clone()]);
+        tree_builder.extend_evals(
+            [
+                is_active_col.clone(),
+                is_step_col.clone(),
+                is_first_col.clone(),
+                is_last_col.clone(),
+            ]
+            .to_vec(),
+        );
         tree_builder.commit(prover_channel);
 
         let mut tree_builder = commitment_scheme.tree_builder();
@@ -77,14 +86,13 @@ mod tests {
         tree_builder.commit(prover_channel);
 
         // Generate interaction traces for LogUp (leaf consumption + root yielding combined)
-        let (interaction_trace, claimed_sum) =
-            gen_merkle_membership_interaction_trace(
-                &trace,
-                &leaf_relation,
-                &root_relation,
-                LOG_SIZE,
-                inputs.depth(),
-            );
+        let (interaction_trace, claimed_sum) = gen_merkle_membership_interaction_trace(
+            &trace,
+            &leaf_relation,
+            &root_relation,
+            LOG_SIZE,
+            inputs.depth(),
+        );
 
         println!("Interaction trace columns: {}", interaction_trace.len());
         println!("Claimed sum: {:?}", claimed_sum);
@@ -111,9 +119,9 @@ mod tests {
                 is_last_id: merkle_is_last_column_id(LOG_SIZE, inputs.depth()),
                 leaf_relation: leaf_relation.clone(),
                 root_relation: root_relation.clone(),
-                claimed_sum,  // Use combined claimed sum
+                claimed_sum, // Use combined claimed sum
             },
-            claimed_sum,  // Total claimed sum for component
+            claimed_sum, // Total claimed sum for component
         );
 
         let proof = prove::<SimdBackend, Blake2sMerkleChannel>(
@@ -140,8 +148,9 @@ mod tests {
             verifier_channel,
         );
 
-        // 175 columns: 1 (current_node_input) + 174 (Poseidon permutation)
-        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 175];
+        // 667 columns with security fix: 1 (index_bit) + 666 (Poseidon Cairo-m style)
+        // 16 initial + 192 first_half + 266 partial (with matrix) + 192 second_half
+        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 667];
         commitment_scheme_verifier.commit(
             proof.commitments[1],
             &base_trace_bounds,
@@ -157,12 +166,13 @@ mod tests {
             verifier_channel,
         );
 
-        let mut tree_span_provider_verifier = TraceLocationAllocator::new_with_preprocessed_columns(&[
-            merkle_is_active_column_id(LOG_SIZE, inputs.depth()),
-            merkle_is_step_column_id(LOG_SIZE, inputs.depth()),
-            merkle_is_first_column_id(LOG_SIZE, inputs.depth()),
-            merkle_is_last_column_id(LOG_SIZE, inputs.depth()),
-        ]);
+        let mut tree_span_provider_verifier =
+            TraceLocationAllocator::new_with_preprocessed_columns(&[
+                merkle_is_active_column_id(LOG_SIZE, inputs.depth()),
+                merkle_is_step_column_id(LOG_SIZE, inputs.depth()),
+                merkle_is_first_column_id(LOG_SIZE, inputs.depth()),
+                merkle_is_last_column_id(LOG_SIZE, inputs.depth()),
+            ]);
         let verifier_component = MerkleMembershipComponent::new(
             &mut tree_span_provider_verifier,
             MerkleMembershipEval {
@@ -174,9 +184,9 @@ mod tests {
                 is_last_id: merkle_is_last_column_id(LOG_SIZE, inputs.depth()),
                 leaf_relation: leaf_relation_v.clone(),
                 root_relation: root_relation_v.clone(),
-                claimed_sum,  // Use same claimed sum
+                claimed_sum, // Use same claimed sum
             },
-            claimed_sum,  // Total claimed sum for component
+            claimed_sum, // Total claimed sum for component
         );
 
         let result = stwo::core::verifier::verify(

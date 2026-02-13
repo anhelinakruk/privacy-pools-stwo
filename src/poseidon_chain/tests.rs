@@ -3,13 +3,17 @@ mod tests {
     use stwo::core::fields::m31::BaseField;
     use stwo::prover::backend::simd::SimdBackend;
     use stwo::prover::backend::{Col, Column};
+    use stwo::prover::{prove, CommitmentSchemeProver};
     use stwo_constraint_framework::TraceLocationAllocator;
 
     use crate::poseidon_chain::{
-        types::ChainInputs,
-        trace::{gen_poseidon_chain_trace, fill_poseidon_row, N_COLUMNS},
-        eval::{gen_is_active_column, gen_is_step_column, gen_is_last_column, is_active_column_id, is_step_column_id, is_last_column_id, PoseidonChainComponent, PoseidonChainEval},
+        eval::{
+            gen_is_active_column, gen_is_last_column, gen_is_step_column, is_active_column_id,
+            is_last_column_id, is_step_column_id, PoseidonChainComponent, PoseidonChainEval,
+        },
         logup::gen_poseidon_chain_interaction_trace,
+        trace::{fill_poseidon_row, gen_poseidon_chain_trace, N_COLUMNS},
+        types::ChainInputs,
     };
     use crate::relations::LeafRelation;
 
@@ -43,7 +47,7 @@ mod tests {
         let mut temp_trace = (0..N_COLUMNS)
             .map(|_| Col::<SimdBackend, BaseField>::zeros(n_rows))
             .collect::<Vec<_>>();
-        
+
         let hash1 = fill_poseidon_row(&mut temp_trace, 0, inputs.input1_a, inputs.input1_b);
         println!("  hash1 = hash(input1_a, input1_b) = {}", hash1.0);
 
@@ -67,7 +71,7 @@ mod tests {
         use stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
         use stwo::prover::backend::simd::SimdBackend;
         use stwo::prover::poly::circle::PolyOps;
-        use stwo::prover::{prove, CommitmentSchemeProver};
+        // use stwo::prover::{prove, CommitmentSchemeProver};
 
         const LOG_SIZE: u32 = 5;
 
@@ -110,7 +114,14 @@ mod tests {
 
         // Commit preprocessed columns
         let mut tree_builder = commitment_scheme.tree_builder();
-        tree_builder.extend_evals([is_active_col.clone(), is_step_col.clone(), is_last_col.clone()]);
+        tree_builder.extend_evals(
+            [
+                is_active_col.clone(),
+                is_step_col.clone(),
+                is_last_col.clone(),
+            ]
+            .to_vec(),
+        );
         tree_builder.commit(prover_channel);
 
         // Commit base trace
@@ -123,7 +134,7 @@ mod tests {
             &trace,
             &leaf_relation,
             LOG_SIZE,
-            1,  // multiplicity=1 for test
+            1, // multiplicity=1 for test
         );
 
         println!("Interaction trace columns: {}", interaction_trace.len());
@@ -150,9 +161,9 @@ mod tests {
                 is_last_id: is_last_column_id(LOG_SIZE, "test"),
                 leaf_relation: leaf_relation.clone(),
                 leaf_multiplicity: 1,
-                claimed_sum,  // Use actual claimed sum from interaction trace
+                claimed_sum, // Use actual claimed sum from interaction trace
             },
-            claimed_sum,  // Total claimed sum for component
+            claimed_sum, // Total claimed sum for component
         );
 
         let proof = prove::<SimdBackend, Blake2sMerkleChannel>(
@@ -176,8 +187,9 @@ mod tests {
             verifier_channel,
         );
 
-        // Commit base trace (174 columns, all at LOG_SIZE)
-        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 174];
+        // Commit base trace (666 columns with security fix, all at LOG_SIZE)
+        // 16 initial + 192 first_half + 266 partial (with matrix) + 192 second_half
+        let base_trace_bounds: Vec<u32> = vec![LOG_SIZE; 666];
         commitment_scheme_verifier.commit(
             proof.commitments[1],
             &base_trace_bounds,
@@ -209,9 +221,9 @@ mod tests {
                 is_last_id: is_last_column_id(LOG_SIZE, "test"),
                 leaf_relation: leaf_relation_v.clone(),
                 leaf_multiplicity: 1,
-                claimed_sum,  // Use same claimed sum
+                claimed_sum, // Use same claimed sum
             },
-            claimed_sum,  // Total claimed sum for component
+            claimed_sum, // Total claimed sum for component
         );
 
         // Verify (verify() will handle interaction column commitments internally)

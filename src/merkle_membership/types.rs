@@ -4,7 +4,7 @@ use stwo::core::fields::m31::BaseField;
 pub struct MerkleInputs {
     pub leaf: BaseField,
     pub siblings: Vec<BaseField>,
-    pub index: u32, 
+    pub index: u32,
     pub expected_root: BaseField,
 }
 

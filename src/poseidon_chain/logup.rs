@@ -1,3 +1,4 @@
+use num_traits::One;
 use stwo::core::fields::m31::BaseField;
 use stwo::core::fields::qm31::SecureField;
 use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
@@ -8,13 +9,16 @@ use stwo::prover::backend::{Col, Column};
 use stwo::prover::poly::circle::CircleEvaluation;
 use stwo::prover::poly::BitReversedOrder;
 use stwo_constraint_framework::{LogupTraceGenerator, Relation};
-use num_traits::One;
 
-use super::trace::{N_CHAIN_ROWS, ColumnVec};
+use super::trace::{ColumnVec, N_CHAIN_ROWS};
 
 use crate::relations::LeafRelation;
 
-const FINAL_STATE_0_COL: usize = 158;
+// Cairo-m style with security fix: final_state[0] is in the last round's step3, first element
+// Layout: 16 (initial) + 192 (first_half) + 266 (partial with matrix) + 192 (second_half) = 666 total
+// Partial rounds now have 4 steps: x^2(1), x^4(1), x^5(1), after_matrix(16) = 19 cols per round
+// Last round step3 starts at column 650 (650-665 for all 16 elements)
+const FINAL_STATE_0_COL: usize = 650;
 
 /// Generate interaction trace for Poseidon chain with LeafRelation.
 pub fn gen_poseidon_chain_interaction_trace(
@@ -25,8 +29,7 @@ pub fn gen_poseidon_chain_interaction_trace(
 ) -> (
     ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
     SecureField,
-)
-{
+) {
     let n_rows = 1 << log_size;
 
     // Generate is_last selector column (1 only for row N_CHAIN_ROWS-1)
@@ -36,14 +39,14 @@ pub fn gen_poseidon_chain_interaction_trace(
     }
     bit_reverse_coset_to_circle_domain_order(is_last_col.as_mut_slice());
 
-    // Extract leaf value from final_state[0] column (column 158)
+    // Extract leaf value from final_state[0] column (column 426)
     let mut logup_gen = LogupTraceGenerator::new(log_size);
 
     {
         let mut col_gen = logup_gen.new_col();
 
         for vec_row in 0..(1 << (log_size - LOG_N_LANES)) {
-            // Read final_state[0] (leaf value) from column 158
+            // Read final_state[0] (leaf value) from column 426
             let col_data = &trace[FINAL_STATE_0_COL].data;
             let leaf_value: PackedSecureField = col_data[vec_row].into();
 
@@ -56,7 +59,8 @@ pub fn gen_poseidon_chain_interaction_trace(
 
             // Apply multiplicity (2 for deposit chain, 1 for refund chain)
             let multiplicity_base = BaseField::from_u32_unchecked(leaf_multiplicity);
-            let multiplicity_packed: stwo::prover::backend::simd::m31::PackedM31 = multiplicity_base.into();
+            let multiplicity_packed: stwo::prover::backend::simd::m31::PackedM31 =
+                multiplicity_base.into();
             let multiplicity_secure: PackedSecureField = multiplicity_packed.into();
             let numerator = is_last_secure * multiplicity_secure; // +multiplicity for last row
 

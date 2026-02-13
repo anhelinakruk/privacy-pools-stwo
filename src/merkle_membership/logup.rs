@@ -1,3 +1,4 @@
+use num_traits::One;
 use stwo::core::fields::m31::BaseField;
 use stwo::core::fields::qm31::SecureField;
 use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
@@ -8,15 +9,20 @@ use stwo::prover::backend::{Col, Column};
 use stwo::prover::poly::circle::CircleEvaluation;
 use stwo::prover::poly::BitReversedOrder;
 use stwo_constraint_framework::{LogupTraceGenerator, Relation};
-use num_traits::One;
 
 use crate::{LeafRelation, RootRelation};
 
 use super::trace::ColumnVec;
 
-const CURRENT_NODE_INPUT_COL: usize = 0;
-
-const FINAL_STATE_0_COL: usize = 159;
+// Column indices - Cairo-m style with security fix
+const INDEX_BIT_COL: usize = 0;
+const INITIAL_STATE_0_COL: usize = 1; // initial_state[0] (left)
+const INITIAL_STATE_1_COL: usize = 2; // initial_state[1] (right)
+                                      // Cairo-m style with security fix: final_state[0] is in the last round's step3, first element
+                                      // Layout: 1 (index_bit) + 16 (initial) + 192 (first_half) + 266 (partial with matrix) + 192 (second_half) = 667 total
+                                      // Partial rounds now have 4 steps: x^2(1), x^4(1), x^5(1), after_matrix(16) = 19 cols per round
+                                      // Last round step3 starts at column 651 (651-666 for all 16 elements)
+const FINAL_STATE_0_COL: usize = 651;
 
 pub fn gen_merkle_membership_interaction_trace(
     trace: &ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>>,
@@ -50,12 +56,20 @@ pub fn gen_merkle_membership_interaction_trace(
         let mut col_gen = logup_gen.new_col();
 
         for vec_row in 0..(1 << (log_size - LOG_N_LANES)) {
-            // Read leaf value from current_node_input column (column 0)
-            // This is always the correct input value, regardless of index_bit
-            let leaf_value: PackedSecureField = trace[CURRENT_NODE_INPUT_COL].data[vec_row].into();
-            let leaf_denom: PackedSecureField = leaf_relation.combine(&[leaf_value]);
+            // Dynamically compute current_node from initial_state[index_bit]
+            // When index_bit=0: current_node = initial_state[0] (left)
+            // When index_bit=1: current_node = initial_state[1] (right)
+            let index_bit_value: PackedSecureField = trace[INDEX_BIT_COL].data[vec_row].into();
+            let left_value: PackedSecureField = trace[INITIAL_STATE_0_COL].data[vec_row].into();
+            let right_value: PackedSecureField = trace[INITIAL_STATE_1_COL].data[vec_row].into();
 
-            // Read root value (final_state[0])
+            let one = PackedSecureField::one();
+            let current_node_value =
+                (one - index_bit_value) * left_value + index_bit_value * right_value;
+
+            let leaf_denom: PackedSecureField = leaf_relation.combine(&[current_node_value]);
+
+            // Read root value (final_state[0] at column 427)
             let root_value: PackedSecureField = trace[FINAL_STATE_0_COL].data[vec_row].into();
             let root_denom: PackedSecureField = root_relation.combine(&[root_value]);
 

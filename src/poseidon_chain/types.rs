@@ -41,7 +41,7 @@ impl ChainInputs {
 
 #[derive(Clone, Debug)]
 pub struct ChainOutputs {
-    pub leaf: BaseField, 
+    pub leaf: BaseField,
 }
 
 #[derive(Clone, Debug)]

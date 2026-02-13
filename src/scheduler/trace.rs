@@ -18,6 +18,23 @@ pub fn gen_scheduler_trace(
 ) -> ColumnVec<CircleEvaluation<SimdBackend, BaseField, BitReversedOrder>> {
     let n_rows = 1 << log_size;
 
+    // 🔒 SECURITY CHECK: Prevent amount underflow attack
+    // In M31 field arithmetic, if refund_amount > commitment_amount,
+    // the subtraction wraps around modulo (2^31-1), which could allow
+    // an attacker to withdraw more funds than deposited.
+    //
+    // We verify here at trace generation that commitment >= refund.
+    // IMPORTANT: The smart contract MUST also enforce this check!
+    let commitment_u32 = commitment_amount.0;
+    let refund_u32 = refund_amount.0;
+    assert!(
+        commitment_u32 >= refund_u32,
+        "🚨 SECURITY: Amount underflow detected! commitment_amount ({}) < refund_amount ({}). \
+         This would allow withdrawing more funds than deposited.",
+        commitment_u32,
+        refund_u32
+    );
+
     let mut trace = vec![
         Col::<SimdBackend, BaseField>::zeros(n_rows),
         Col::<SimdBackend, BaseField>::zeros(n_rows),

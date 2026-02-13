@@ -1,1 +1,6 @@
 /target
+
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/lib/
