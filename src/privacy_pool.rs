@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use stwo::core::channel::Blake2sChannel;
+    use stwo::core::channel::KeccakChannel;
     use stwo::core::fields::m31::BaseField;
     use stwo::core::pcs::{CommitmentSchemeVerifier, PcsConfig};
     use stwo::core::poly::circle::CanonicCoset;
-    use stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
+    use stwo::core::vcs::keccak_merkle::KeccakMerkleChannel;
     use stwo::prover::backend::simd::SimdBackend;
     use stwo::prover::poly::circle::PolyOps;
     use stwo::prover::{prove, CommitmentSchemeProver};
@@ -33,7 +33,6 @@ mod tests {
     fn test_privacy_pool_combined() {
         const LOG_SIZE: u32 = 5;
 
-        // Generate deposit chain
         let deposit_inputs = ChainInputs::for_deposit(
             BaseField::from_u32_unchecked(12345),
             BaseField::from_u32_unchecked(67890),
@@ -44,7 +43,6 @@ mod tests {
             gen_poseidon_chain_trace(LOG_SIZE, deposit_inputs.clone());
         println!("Deposit leaf: {}\n", deposit_outputs.leaf.0);
 
-        // Generate refund chain
         let refund_inputs = ChainInputs::for_refund(
             BaseField::from_u32_unchecked(54321),
             BaseField::from_u32_unchecked(98765),
@@ -91,9 +89,9 @@ mod tests {
                 .half_coset,
         );
 
-        let prover_channel = &mut Blake2sChannel::default();
+        let prover_channel = &mut KeccakChannel::default();
         let mut commitment_scheme =
-            CommitmentSchemeProver::<SimdBackend, Blake2sMerkleChannel>::new(config, &twiddles);
+            CommitmentSchemeProver::<SimdBackend, KeccakMerkleChannel>::new(config, &twiddles);
         // commitment_scheme.set_store_polynomials_coefficients();
 
         // Mix public statement into Fiat-Shamir channel BEFORE drawing relations
@@ -274,7 +272,7 @@ mod tests {
             scheduler_claimed_sum, // Total claimed sum for scheduler component
         );
 
-        let proof = prove::<SimdBackend, Blake2sMerkleChannel>(
+        let proof = prove::<SimdBackend, KeccakMerkleChannel>(
             &[
                 &deposit_component,
                 &refund_component,
@@ -287,9 +285,9 @@ mod tests {
         .expect("Failed to generate proof");
         println!("Proof generated\n");
 
-        let verifier_channel = &mut Blake2sChannel::default();
+        let verifier_channel = &mut KeccakChannel::default();
         let mut commitment_scheme_verifier =
-            CommitmentSchemeVerifier::<Blake2sMerkleChannel>::new(config);
+            CommitmentSchemeVerifier::<KeccakMerkleChannel>::new(config);
 
         // Verifier receives PUBLIC INPUTS (outside the proof)
         // In this test, we use the same values as prover, but in real system
@@ -333,12 +331,7 @@ mod tests {
             verifier_channel,
         );
 
-        // Commit interaction traces
-        // Deposit: 4 columns (multiplicity=2)
-        // Refund: 4 columns (multiplicity=1)
-        // Merkle: 4 columns (both relations combined)
-        // Scheduler: 12 columns (3 relations * 4 columns each)
-        // Total: 24 columns
+
         commitment_scheme_verifier.commit(
             proof.commitments[2],
             &[

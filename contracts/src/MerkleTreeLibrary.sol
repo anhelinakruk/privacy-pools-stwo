@@ -82,9 +82,9 @@ library MerkleTreeLib {
         for (uint256 i = 1; i < 32; i++) {
             if (currentIndex % 2 == 0) {
                 self.leftPath[i - 1] = currentHash;
-                currentHash = Poseidon2.hashTwoWide(currentHash, self.precomputed[i - 1]);
+                currentHash = Poseidon2.hashTwo(currentHash, self.precomputed[i - 1]);
             } else {
-                currentHash = Poseidon2.hashTwoWide(self.leftPath[i - 1], currentHash);
+                currentHash = Poseidon2.hashTwo(self.leftPath[i - 1], currentHash);
             }
             currentIndex = currentIndex / 2;
         }

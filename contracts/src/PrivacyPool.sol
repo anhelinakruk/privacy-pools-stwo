@@ -34,12 +34,12 @@ contract PrivacyPool {
 
     /// @notice Hash two values using Poseidon2
     function poseidonHash(uint256 left, uint256 right) public pure returns (uint256) {
-        return Poseidon2.hashTwoWide(left, right);
+        return Poseidon2.hashTwo(left, right);
     }
 
     /// @notice Internal hash function
     function _poseidonHash(uint256 left, uint256 right) internal pure returns (uint256) {
-        return Poseidon2.hashTwoWide(left, right);
+        return Poseidon2.hashTwo(left, right);
     }
 
     /// @notice Deposit tokens into the privacy pool
