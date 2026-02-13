@@ -1,11 +1,14 @@
 use alloy::{
-    network::EthereumWallet, primitives::{Address, U256}, providers::{Provider, ProviderBuilder}, signers::local::PrivateKeySigner, sol
+    network::EthereumWallet,
+    primitives::{Address, U256},
+    providers::{Provider, ProviderBuilder},
+    signers::local::PrivateKeySigner,
+    sol,
 };
 use eyre::Result;
 use privacy_pools_stwo::poseidon_hash::{
-    apply_external_round_matrix, apply_internal_round_matrix, pow5,
-    EXTERNAL_ROUND_CONSTS, INTERNAL_ROUND_CONSTS,
-    N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
+    apply_external_round_matrix, apply_internal_round_matrix, pow5, EXTERNAL_ROUND_CONSTS,
+    INTERNAL_ROUND_CONSTS, N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
 };
 use stwo::core::fields::m31::BaseField;
 
@@ -51,13 +54,7 @@ fn poseidon2_hash_wide(a: u32, b: u32) -> [u32; 8] {
 
     // Return first 8 elements (248 bits)
     [
-        state[0].0,
-        state[1].0,
-        state[2].0,
-        state[3].0,
-        state[4].0,
-        state[5].0,
-        state[6].0,
+        state[0].0, state[1].0, state[2].0, state[3].0, state[4].0, state[5].0, state[6].0,
         state[7].0,
     ]
 }
@@ -101,17 +98,15 @@ sol! {
 async fn test_basic_setup() -> Result<()> {
     let rpc_url = "http://localhost:8545".parse()?;
 
-    let signer: PrivateKeySigner = 
+    let signer: PrivateKeySigner =
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?;
     let wallet = EthereumWallet::from(signer.clone());
 
-    let provider = ProviderBuilder::new()
-        .wallet(wallet)
-        .connect_http(rpc_url);
-    
+    let provider = ProviderBuilder::new().wallet(wallet).connect_http(rpc_url);
+
     let my_address = signer.address();
     println!("My address: {}", my_address);
-    
+
     let balance = provider.get_balance(my_address).await?;
     println!("ETH balance: {} wei", balance);
 
@@ -120,12 +115,17 @@ async fn test_basic_setup() -> Result<()> {
 
     let pool = PrivacyPool::new(pool_address, &provider);
     let token = MockERC20::new(token_address, &provider);
-    
+
     let token_balance = token.balanceOf(my_address).call().await?;
     println!("Token balance: {}", token_balance);
 
     let amount = U256::from(10000000);
-    let receipt = token.approve(pool_address, amount).send().await?.get_receipt().await?;
+    let receipt = token
+        .approve(pool_address, amount)
+        .send()
+        .await?
+        .get_receipt()
+        .await?;
 
     println!("Approved tx: {:?}", receipt.transaction_hash);
 
@@ -133,18 +133,31 @@ async fn test_basic_setup() -> Result<()> {
     let nullifier = 67890u32;
     let deposit_amount = 100u32;
 
-    let secret_nullifier_hash= poseidon2_hash(secret, nullifier);
-    let hash_result = pool.poseidonHash(U256::from(secret), U256::from(nullifier)).call().await?;
+    let secret_nullifier_hash = poseidon2_hash(secret, nullifier);
+    let hash_result = pool
+        .poseidonHash(U256::from(secret), U256::from(nullifier))
+        .call()
+        .await?;
     println!("   Contract hash(secret, nullifier): {:#x}", hash_result);
-    println!("   Rust hash(secret, nullifier):     {:#x}", secret_nullifier_hash);
+    println!(
+        "   Rust hash(secret, nullifier):     {:#x}",
+        secret_nullifier_hash
+    );
 
     println!("   Secret-Nullifier Hash: {:#x}", secret_nullifier_hash);
     println!("   Amount: {}", deposit_amount);
     println!("   Token: {}", token_address);
 
-    let receipt = pool.deposit(secret_nullifier_hash, U256::from(deposit_amount), token_address)
-        .send().await?
-        .get_receipt().await?;
+    let receipt = pool
+        .deposit(
+            secret_nullifier_hash,
+            U256::from(deposit_amount),
+            token_address,
+        )
+        .send()
+        .await?
+        .get_receipt()
+        .await?;
 
     println!("Deposit successful");
     println!("Tx hash: {:?}", receipt.transaction_hash);
@@ -163,9 +176,7 @@ async fn test_withdraw() -> Result<()> {
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?;
     let wallet = EthereumWallet::from(signer.clone());
 
-    let provider = ProviderBuilder::new()
-        .wallet(wallet)
-        .connect_http(rpc_url);
+    let provider = ProviderBuilder::new().wallet(wallet).connect_http(rpc_url);
 
     let my_address = signer.address();
     println!("My address: {}", my_address);
@@ -177,7 +188,12 @@ async fn test_withdraw() -> Result<()> {
     let token = MockERC20::new(token_address, &provider);
 
     let amount = U256::from(10000000);
-    let approve_receipt = token.approve(pool_address, amount).send().await?.get_receipt().await?;
+    let approve_receipt = token
+        .approve(pool_address, amount)
+        .send()
+        .await?
+        .get_receipt()
+        .await?;
     println!("📝 Approved: {:?}", approve_receipt.transaction_hash);
 
     let allowance = token.allowance(my_address, pool_address).call().await?;
@@ -191,18 +207,31 @@ async fn test_withdraw() -> Result<()> {
     println!("Nullifier hash: {:#x}", secret_nullifier_hash);
 
     let my_balance_before_deposit = token.balanceOf(my_address).call().await?;
-    println!("My token balance before deposit: {}", my_balance_before_deposit);
+    println!(
+        "My token balance before deposit: {}",
+        my_balance_before_deposit
+    );
 
-    let receipt = pool.deposit(secret_nullifier_hash, U256::from(deposit_amount), token_address)
-        .send().await?
-        .get_receipt().await?;
+    let receipt = pool
+        .deposit(
+            secret_nullifier_hash,
+            U256::from(deposit_amount),
+            token_address,
+        )
+        .send()
+        .await?
+        .get_receipt()
+        .await?;
 
     println!("Deposit successful: {:?}", receipt.transaction_hash);
     println!("Gas used: {}", receipt.gas_used);
     println!("Status: {:?}", receipt.status());
 
     let my_balance_after_deposit = token.balanceOf(my_address).call().await?;
-    println!("My token balance after deposit: {}", my_balance_after_deposit);
+    println!(
+        "My token balance after deposit: {}",
+        my_balance_after_deposit
+    );
 
     let root = pool.getCurrentRoot().call().await?;
     println!("Merkle root: {:#x}", root);
@@ -214,35 +243,51 @@ async fn test_withdraw() -> Result<()> {
     let my_balance_before = token.balanceOf(my_address).call().await?;
     println!("My balance before withdraw: {}", my_balance_before);
 
-    let withdraw_receipt = pool.withdraw(
-        root,
-        secret_nullifier_hash, // nullifier is hash(secret, nullifier)
-        token_address,
-        U256::from(deposit_amount),
-        recipient
-    )
-    .send().await?
-    .get_receipt().await?;
-    println!("Withdraw successful: {:?}", withdraw_receipt.transaction_hash);
-
+    let withdraw_receipt = pool
+        .withdraw(
+            root,
+            secret_nullifier_hash, // nullifier is hash(secret, nullifier)
+            token_address,
+            U256::from(deposit_amount),
+            recipient,
+        )
+        .send()
+        .await?
+        .get_receipt()
+        .await?;
+    println!(
+        "Withdraw successful: {:?}",
+        withdraw_receipt.transaction_hash
+    );
 
     let my_balance_after = token.balanceOf(my_address).call().await?;
     let contract_balance_after = token.balanceOf(pool_address).call().await?;
 
     println!("My balance after withdraw: {}", my_balance_after);
-    println!("Contract balance after withdraw: {}", contract_balance_after);
+    println!(
+        "Contract balance after withdraw: {}",
+        contract_balance_after
+    );
 
-    assert_eq!(my_balance_after, my_balance_before + U256::from(deposit_amount));
-    assert_eq!(contract_balance_after, contract_balance_before - U256::from(deposit_amount));
+    assert_eq!(
+        my_balance_after,
+        my_balance_before + U256::from(deposit_amount)
+    );
+    assert_eq!(
+        contract_balance_after,
+        contract_balance_before - U256::from(deposit_amount)
+    );
 
-    let result = pool.withdraw(
-        root,
-        secret_nullifier_hash,
-        token_address,
-        U256::from(deposit_amount),
-        recipient
-    )
-    .send().await;
+    let result = pool
+        .withdraw(
+            root,
+            secret_nullifier_hash,
+            token_address,
+            U256::from(deposit_amount),
+            recipient,
+        )
+        .send()
+        .await;
 
     match result {
         Err(_) => println!("Double-spend correctly prevented!"),

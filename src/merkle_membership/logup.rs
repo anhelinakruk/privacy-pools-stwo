@@ -18,10 +18,10 @@ use super::trace::ColumnVec;
 const INDEX_BIT_COL: usize = 0;
 const INITIAL_STATE_0_COL: usize = 1; // initial_state[0] (left)
 const INITIAL_STATE_1_COL: usize = 2; // initial_state[1] (right)
-// Cairo-m style with security fix: final_state[0] is in the last round's step3, first element
-// Layout: 1 (index_bit) + 16 (initial) + 192 (first_half) + 266 (partial with matrix) + 192 (second_half) = 667 total
-// Partial rounds now have 4 steps: x^2(1), x^4(1), x^5(1), after_matrix(16) = 19 cols per round
-// Last round step3 starts at column 651 (651-666 for all 16 elements)
+                                      // Cairo-m style with security fix: final_state[0] is in the last round's step3, first element
+                                      // Layout: 1 (index_bit) + 16 (initial) + 192 (first_half) + 266 (partial with matrix) + 192 (second_half) = 667 total
+                                      // Partial rounds now have 4 steps: x^2(1), x^4(1), x^5(1), after_matrix(16) = 19 cols per round
+                                      // Last round step3 starts at column 651 (651-666 for all 16 elements)
 const FINAL_STATE_0_COL: usize = 651;
 
 pub fn gen_merkle_membership_interaction_trace(

@@ -31,7 +31,8 @@ pub fn gen_scheduler_trace(
         commitment_u32 >= refund_u32,
         "🚨 SECURITY: Amount underflow detected! commitment_amount ({}) < refund_amount ({}). \
          This would allow withdrawing more funds than deposited.",
-        commitment_u32, refund_u32
+        commitment_u32,
+        refund_u32
     );
 
     let mut trace = vec![

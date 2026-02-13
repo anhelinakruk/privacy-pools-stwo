@@ -313,7 +313,8 @@ mod tests {
             &[
                 LOG_SIZE, LOG_SIZE, LOG_SIZE, // deposit: is_active, is_step, is_last
                 LOG_SIZE, LOG_SIZE, LOG_SIZE, // refund: is_active, is_step, is_last
-                LOG_SIZE, LOG_SIZE, LOG_SIZE, LOG_SIZE, // merkle: is_active, is_step, is_first, is_last
+                LOG_SIZE, LOG_SIZE, LOG_SIZE,
+                LOG_SIZE, // merkle: is_active, is_step, is_first, is_last
                 LOG_SIZE, // scheduler: is_first
             ],
             verifier_channel,
@@ -330,7 +331,6 @@ mod tests {
             &base_trace_bounds,
             verifier_channel,
         );
-
 
         commitment_scheme_verifier.commit(
             proof.commitments[2],

@@ -1,7 +1,7 @@
 mod poseidon_hash;
 
-use stwo::core::fields::m31::BaseField;
 use poseidon_hash::*;
+use stwo::core::fields::m31::BaseField;
 
 /// Hash two elements using Poseidon2 (returns first element of state - 31 bits)
 fn poseidon_hash_two(a: u32, b: u32) -> u32 {
@@ -13,13 +13,7 @@ fn poseidon_hash_two(a: u32, b: u32) -> u32 {
 fn poseidon_hash_two_wide(a: u32, b: u32) -> [u32; 8] {
     let state = poseidon_permute(a, b);
     [
-        state[0].0,
-        state[1].0,
-        state[2].0,
-        state[3].0,
-        state[4].0,
-        state[5].0,
-        state[6].0,
+        state[0].0, state[1].0, state[2].0, state[3].0, state[4].0, state[5].0, state[6].0,
         state[7].0,
     ]
 }
@@ -28,17 +22,17 @@ fn poseidon_hash_two_wide(a: u32, b: u32) -> [u32; 8] {
 fn combine_to_uint256(elements: [u32; 8]) -> String {
     let mut result: u128 = 0;
     let mut result_hi: u128 = 0;
-    
+
     // Lower 128 bits: elements[4..8]
     for i in 0..4 {
         result |= (elements[4 + i] as u128) << (i * 31);
     }
-    
+
     // Upper 120 bits (of 248 total): elements[0..4]
     for i in 0..4 {
         result_hi |= (elements[i] as u128) << (i * 31);
     }
-    
+
     format!("0x{:031x}{:032x}", result_hi, result)
 }
 
@@ -49,11 +43,15 @@ fn poseidon_permute(a: u32, b: u32) -> [BaseField; N_STATE] {
     const M31_MODULUS: u32 = (1u32 << 31) - 1;
     assert!(
         a <= M31_MODULUS,
-        "Input 'a' ({}) exceeds M31 field modulus ({})", a, M31_MODULUS
+        "Input 'a' ({}) exceeds M31 field modulus ({})",
+        a,
+        M31_MODULUS
     );
     assert!(
         b <= M31_MODULUS,
-        "Input 'b' ({}) exceeds M31 field modulus ({})", b, M31_MODULUS
+        "Input 'b' ({}) exceeds M31 field modulus ({})",
+        b,
+        M31_MODULUS
     );
 
     // Initialize state with [a, b, 0, 0, ..., 0] (16 elements)
@@ -95,17 +93,17 @@ fn poseidon_permute(a: u32, b: u32) -> [BaseField; N_STATE] {
 /// Compute precomputed hashes for sparse Merkle tree (32 levels) - 248 bit version
 fn compute_precomputed_hashes_wide() -> Vec<[u32; 8]> {
     let mut precomputed = Vec::new();
-    
+
     // Level 0: hash of empty leaf (0, 0)
     precomputed.push(poseidon_hash_two_wide(0, 0));
-    
+
     // Level i: hash of two nodes from level i-1
     // For simplicity, we hash the first element of each node
     for i in 1..32 {
         let prev = precomputed[i - 1][0];
         precomputed.push(poseidon_hash_two_wide(prev, prev));
     }
-    
+
     precomputed
 }
 
@@ -119,29 +117,41 @@ fn main() {
 
     let hash3 = poseidon_hash_two(5, 10);
     println!("Poseidon hash of (5, 10) = {:#x}", hash3);
-    
+
     println!("\n=== 248-bit hashes (8 elements) ===");
     let hash_wide = poseidon_hash_two_wide(1, 2);
-    println!("Poseidon hash of (1, 2) = {}", combine_to_uint256(hash_wide));
-    
+    println!(
+        "Poseidon hash of (1, 2) = {}",
+        combine_to_uint256(hash_wide)
+    );
+
     let hash_wide2 = poseidon_hash_two_wide(0, 0);
-    println!("Poseidon hash of (0, 0) = {}", combine_to_uint256(hash_wide2));
-    
+    println!(
+        "Poseidon hash of (0, 0) = {}",
+        combine_to_uint256(hash_wide2)
+    );
+
     let hash_wide3 = poseidon_hash_two_wide(5, 10);
-    println!("Poseidon hash of (5, 10) = {}", combine_to_uint256(hash_wide3));
-    
+    println!(
+        "Poseidon hash of (5, 10) = {}",
+        combine_to_uint256(hash_wide3)
+    );
+
     println!("\n=== Precomputed hashes for Sparse Merkle Tree (248-bit) ===");
     let precomputed = compute_precomputed_hashes_wide();
     for (i, hash) in precomputed.iter().enumerate() {
         println!("self.precomputed[{}] = {};", i, combine_to_uint256(*hash));
     }
-    println!("\nRoot of empty tree: {}", combine_to_uint256(precomputed[31]));
+    println!(
+        "\nRoot of empty tree: {}",
+        combine_to_uint256(precomputed[31])
+    );
 }
 
 #[cfg(test)]
 mod input_validation_tests {
     use super::*;
-    
+
     #[test]
     #[should_panic(expected = "exceeds M31 field modulus")]
     fn test_poseidon_hash_rejects_invalid_input_a() {
@@ -150,14 +160,14 @@ mod input_validation_tests {
         let invalid = 1u32 << 31; // 2147483648
         poseidon_hash_two(invalid, 100);
     }
-    
+
     #[test]
     #[should_panic(expected = "exceeds M31 field modulus")]
     fn test_poseidon_hash_rejects_invalid_input_b() {
         let invalid = (1u32 << 31) + 1000; // Way above modulus
         poseidon_hash_two(100, invalid);
     }
-    
+
     #[test]
     fn test_poseidon_hash_accepts_valid_input() {
         // M31 modulus = 2^31 - 1 = 2147483647

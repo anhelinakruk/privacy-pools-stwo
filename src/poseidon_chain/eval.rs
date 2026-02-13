@@ -82,9 +82,7 @@ impl FrameworkEval for PoseidonChainEval {
             state = std::array::from_fn(|i| state[i].clone() * state[i].clone());
             for i in 0..N_STATE {
                 let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-                eval.add_constraint(
-                    is_active_val.clone() * (state[i].clone() - mask.clone()),
-                );
+                eval.add_constraint(is_active_val.clone() * (state[i].clone() - mask.clone()));
                 state[i] = mask; // Replace with trace value!
             }
 
@@ -92,9 +90,7 @@ impl FrameworkEval for PoseidonChainEval {
             state = std::array::from_fn(|i| state[i].clone() * state[i].clone());
             for i in 0..N_STATE {
                 let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-                eval.add_constraint(
-                    is_active_val.clone() * (state[i].clone() - mask.clone()),
-                );
+                eval.add_constraint(is_active_val.clone() * (state[i].clone() - mask.clone()));
                 state[i] = mask; // Replace with trace value!
             }
 
@@ -103,9 +99,7 @@ impl FrameworkEval for PoseidonChainEval {
             apply_external_round_matrix(&mut state);
             for i in 0..N_STATE {
                 let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-                eval.add_constraint(
-                    is_active_val.clone() * (state[i].clone() - mask.clone()),
-                );
+                eval.add_constraint(is_active_val.clone() * (state[i].clone() - mask.clone()));
                 state[i] = mask; // Replace with trace value!
             }
         }
@@ -119,25 +113,19 @@ impl FrameworkEval for PoseidonChainEval {
             // Step 1: Square the first element (x^2)
             state[0] = state[0].clone() * state[0].clone();
             let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-            eval.add_constraint(
-                is_active_val.clone() * (state[0].clone() - mask.clone()),
-            );
+            eval.add_constraint(is_active_val.clone() * (state[0].clone() - mask.clone()));
             state[0] = mask; // Replace with trace value!
 
             // Step 2: Square again (x^4)
             state[0] = state[0].clone() * state[0].clone();
             let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-            eval.add_constraint(
-                is_active_val.clone() * (state[0].clone() - mask.clone()),
-            );
+            eval.add_constraint(is_active_val.clone() * (state[0].clone() - mask.clone()));
             state[0] = mask; // Replace with trace value!
 
             // Step 3: Multiply by initial state[0] (x^5)
             state[0] = state[0].clone() * initial_state_0;
             let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-            eval.add_constraint(
-                is_active_val.clone() * (state[0].clone() - mask.clone()),
-            );
+            eval.add_constraint(is_active_val.clone() * (state[0].clone() - mask.clone()));
             state[0] = mask; // Replace with trace value!
 
             // Step 4: Apply internal round matrix and VERIFY all 16 elements
@@ -145,9 +133,7 @@ impl FrameworkEval for PoseidonChainEval {
             apply_internal_round_matrix(&mut state);
             for i in 0..N_STATE {
                 let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-                eval.add_constraint(
-                    is_active_val.clone() * (state[i].clone() - mask.clone()),
-                );
+                eval.add_constraint(is_active_val.clone() * (state[i].clone() - mask.clone()));
                 state[i] = mask; // Replace with trace value!
             }
         }
@@ -165,9 +151,7 @@ impl FrameworkEval for PoseidonChainEval {
             state = std::array::from_fn(|i| state[i].clone() * state[i].clone());
             for i in 0..N_STATE {
                 let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-                eval.add_constraint(
-                    is_active_val.clone() * (state[i].clone() - mask.clone()),
-                );
+                eval.add_constraint(is_active_val.clone() * (state[i].clone() - mask.clone()));
                 state[i] = mask; // Replace with trace value!
             }
 
@@ -175,9 +159,7 @@ impl FrameworkEval for PoseidonChainEval {
             state = std::array::from_fn(|i| state[i].clone() * state[i].clone());
             for i in 0..N_STATE {
                 let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-                eval.add_constraint(
-                    is_active_val.clone() * (state[i].clone() - mask.clone()),
-                );
+                eval.add_constraint(is_active_val.clone() * (state[i].clone() - mask.clone()));
                 state[i] = mask; // Replace with trace value!
             }
 
@@ -186,9 +168,7 @@ impl FrameworkEval for PoseidonChainEval {
             apply_external_round_matrix(&mut state);
             for i in 0..N_STATE {
                 let mask = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-                eval.add_constraint(
-                    is_active_val.clone() * (state[i].clone() - mask.clone()),
-                );
+                eval.add_constraint(is_active_val.clone() * (state[i].clone() - mask.clone()));
                 state[i] = mask; // Replace with trace value!
             }
         }
