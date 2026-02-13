@@ -1,7 +1,7 @@
 mod poseidon_hash;
 
 use poseidon_hash::*;
-use stwo::core::fields::m31::BaseField;
+use stwo_prover::core::fields::m31::BaseField;
 
 /// Hash two elements using Poseidon2 (returns first element of state - 31 bits)
 fn poseidon_hash_two(a: u32, b: u32) -> u32 {

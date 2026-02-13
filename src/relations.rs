@@ -1,4 +1,4 @@
-use stwo_constraint_framework::relation;
+use stwo_prover::relation;
 
 relation!(LeafRelation, 1);
 relation!(RootRelation, 1);

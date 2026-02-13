@@ -1,15 +1,6 @@
 use num_traits::One;
-use stwo::core::fields::m31::BaseField;
-use stwo::core::fields::qm31::SecureField;
-use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
-use stwo::prover::backend::simd::m31::LOG_N_LANES;
-use stwo::prover::backend::simd::qm31::PackedSecureField;
-use stwo::prover::backend::simd::SimdBackend;
-use stwo::prover::backend::{Col, Column};
-use stwo::prover::poly::circle::CircleEvaluation;
-use stwo::prover::poly::BitReversedOrder;
-use stwo_constraint_framework::{LogupTraceGenerator, Relation};
-
+use stwo_prover::{constraint_framework::{Relation, logup::LogupTraceGenerator}, core::{backend::{Col, simd::{SimdBackend, m31::LOG_N_LANES, qm31::PackedSecureField}}, fields::{m31::BaseField, qm31::SecureField}, poly::{BitReversedOrder, circle::CircleEvaluation}, utils::bit_reverse_coset_to_circle_domain_order}};
+use stwo_prover::core::backend::Column;
 use crate::{LeafRelation, RootRelation};
 
 use super::trace::ColumnVec;

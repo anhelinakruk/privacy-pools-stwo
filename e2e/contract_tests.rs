@@ -10,7 +10,7 @@ use privacy_pools_stwo::poseidon_hash::{
     apply_external_round_matrix, apply_internal_round_matrix, pow5, EXTERNAL_ROUND_CONSTS,
     INTERNAL_ROUND_CONSTS, N_HALF_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_STATE,
 };
-use stwo::core::fields::m31::BaseField;
+use stwo_prover::core::fields::m31::BaseField;
 
 /// Helper: Hash two u32 values using our Poseidon2 implementation (returns 8 M31 elements)
 fn poseidon2_hash_wide(a: u32, b: u32) -> [u32; 8] {

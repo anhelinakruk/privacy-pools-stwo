@@ -1,11 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use stwo::core::fields::m31::BaseField;
-    use stwo::prover::backend::simd::SimdBackend;
-    use stwo::prover::backend::{Col, Column};
-    use stwo::prover::{prove, CommitmentSchemeProver};
-    use stwo_constraint_framework::TraceLocationAllocator;
-
+    use stwo_prover::{constraint_framework::TraceLocationAllocator, core::{backend::{Col, simd::SimdBackend}, channel::Blake2sChannel, fields::m31::BaseField, pcs::{CommitmentSchemeProver, CommitmentSchemeVerifier, PcsConfig}, poly::circle::{CanonicCoset, PolyOps}, prover::{prove, verify}, vcs::blake2_merkle::Blake2sMerkleChannel}};
+    use stwo_prover::core::backend::Column;
     use crate::poseidon_chain::{
         eval::{
             gen_is_active_column, gen_is_last_column, gen_is_step_column, is_active_column_id,
@@ -65,12 +61,6 @@ mod tests {
 
     #[test]
     fn test_poseidon_chain_prove_and_verify() {
-        use stwo::core::channel::Blake2sChannel;
-        use stwo::core::pcs::{CommitmentSchemeVerifier, PcsConfig};
-        use stwo::core::poly::circle::CanonicCoset;
-        use stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
-        use stwo::prover::backend::simd::SimdBackend;
-        use stwo::prover::poly::circle::PolyOps;
         // use stwo::prover::{prove, CommitmentSchemeProver};
 
         const LOG_SIZE: u32 = 5;
@@ -146,7 +136,7 @@ mod tests {
         tree_builder.commit(prover_channel);
 
         // Create component
-        let mut tree_span_provider = TraceLocationAllocator::new_with_preprocessed_columns(&[
+        let mut tree_span_provider = TraceLocationAllocator::new_with_preproccessed_columns(&[
             is_active_column_id(LOG_SIZE, "test"),
             is_step_column_id(LOG_SIZE, "test"),
             is_last_column_id(LOG_SIZE, "test"),
@@ -206,7 +196,7 @@ mod tests {
 
         // Create verifier component
         let mut tree_span_provider_verifier =
-            TraceLocationAllocator::new_with_preprocessed_columns(&[
+            TraceLocationAllocator::new_with_preproccessed_columns(&[
                 is_active_column_id(LOG_SIZE, "test"),
                 is_step_column_id(LOG_SIZE, "test"),
                 is_last_column_id(LOG_SIZE, "test"),
@@ -227,7 +217,7 @@ mod tests {
         );
 
         // Verify (verify() will handle interaction column commitments internally)
-        let result = stwo::core::verifier::verify(
+        let result = verify(
             &[&verifier_component],
             verifier_channel,
             &mut commitment_scheme_verifier,

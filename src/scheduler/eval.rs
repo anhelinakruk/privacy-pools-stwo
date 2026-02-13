@@ -1,9 +1,5 @@
-use stwo::core::fields::m31::BaseField;
-use stwo::core::fields::qm31::SecureField;
-use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
-use stwo_constraint_framework::{
-    EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry, ORIGINAL_TRACE_IDX,
-};
+use stwo_prover::{constraint_framework::{EvalAtRow, FrameworkComponent, FrameworkEval, ORIGINAL_TRACE_IDX, RelationEntry, preprocessed_columns::PreProcessedColumnId}, core::{backend::{Col, simd::SimdBackend}, fields::{m31::BaseField, qm31::SecureField}, poly::{BitReversedOrder, circle::{CanonicCoset, CircleEvaluation}}, utils::bit_reverse_coset_to_circle_domain_order}};
+use stwo_prover::core::backend::Column;
 
 use crate::relations::{LeafRelation, RefundLeafRelation, RootRelation};
 
@@ -106,16 +102,12 @@ pub type PrivacyPoolSchedulerComponent = FrameworkComponent<PrivacyPoolScheduler
 
 pub fn gen_is_first_column(
     log_size: u32,
-) -> stwo::prover::poly::circle::CircleEvaluation<
-    stwo::prover::backend::simd::SimdBackend,
+) -> CircleEvaluation<
+    SimdBackend,
     BaseField,
-    stwo::prover::poly::BitReversedOrder,
+    BitReversedOrder,
 > {
     use num_traits::One;
-    use stwo::core::poly::circle::CanonicCoset;
-    use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
-    use stwo::prover::backend::simd::SimdBackend;
-    use stwo::prover::backend::{Col, Column};
 
     let n_rows = 1 << log_size;
     let mut col = Col::<SimdBackend, BaseField>::zeros(n_rows);
@@ -126,7 +118,7 @@ pub fn gen_is_first_column(
 
     bit_reverse_coset_to_circle_domain_order(col.as_mut_slice());
     let domain = CanonicCoset::new(log_size).circle_domain();
-    stwo::prover::poly::circle::CircleEvaluation::new(domain, col)
+    CircleEvaluation::new(domain, col)
 }
 
 pub fn is_first_column_id(log_size: u32) -> PreProcessedColumnId {

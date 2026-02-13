@@ -1,7 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use stwo::core::fields::m31::BaseField;
-    use stwo::prover::backend::simd::SimdBackend;
+    use stwo_prover::constraint_framework::TraceLocationAllocator;
+    use stwo_prover::core::backend::simd::SimdBackend;
+    use stwo_prover::core::channel::Blake2sChannel;
+    use stwo_prover::core::fields::m31::BaseField;
+    use stwo_prover::core::pcs::{CommitmentSchemeProver, CommitmentSchemeVerifier, PcsConfig};
+    use stwo_prover::core::poly::circle::{CanonicCoset, PolyOps};
+    use stwo_prover::core::prover::{prove, verify};
+    use stwo_prover::core::vcs::blake2_merkle::Blake2sMerkleChannel;
 
     use crate::merkle_membership::{
         gen_merkle_is_active_column, gen_merkle_is_first_column, gen_merkle_is_last_column,
@@ -13,13 +19,6 @@ mod tests {
 
     #[test]
     fn test_merkle_prove_and_verify() {
-        use stwo::core::channel::Blake2sChannel;
-        use stwo::core::pcs::{CommitmentSchemeVerifier, PcsConfig};
-        use stwo::core::poly::circle::CanonicCoset;
-        use stwo::core::vcs::blake2_merkle::Blake2sMerkleChannel;
-        use stwo::prover::poly::circle::PolyOps;
-        use stwo::prover::{prove, CommitmentSchemeProver};
-        use stwo_constraint_framework::TraceLocationAllocator;
 
         let leaf = BaseField::from_u32_unchecked(12345);
         // Use depth=5 for better testing (more rows)
@@ -102,7 +101,7 @@ mod tests {
         tree_builder.extend_evals(interaction_trace.clone());
         tree_builder.commit(prover_channel);
 
-        let mut tree_span_provider = TraceLocationAllocator::new_with_preprocessed_columns(&[
+        let mut tree_span_provider = TraceLocationAllocator::new_with_preproccessed_columns(&[
             merkle_is_active_column_id(LOG_SIZE, inputs.depth()),
             merkle_is_step_column_id(LOG_SIZE, inputs.depth()),
             merkle_is_first_column_id(LOG_SIZE, inputs.depth()),
@@ -167,7 +166,7 @@ mod tests {
         );
 
         let mut tree_span_provider_verifier =
-            TraceLocationAllocator::new_with_preprocessed_columns(&[
+            TraceLocationAllocator::new_with_preproccessed_columns(&[
                 merkle_is_active_column_id(LOG_SIZE, inputs.depth()),
                 merkle_is_step_column_id(LOG_SIZE, inputs.depth()),
                 merkle_is_first_column_id(LOG_SIZE, inputs.depth()),
@@ -189,7 +188,7 @@ mod tests {
             claimed_sum, // Total claimed sum for component
         );
 
-        let result = stwo::core::verifier::verify(
+        let result = verify(
             &[&verifier_component],
             verifier_channel,
             &mut commitment_scheme_verifier,

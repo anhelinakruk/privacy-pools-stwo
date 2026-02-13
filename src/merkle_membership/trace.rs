@@ -1,10 +1,6 @@
-use stwo::core::fields::m31::BaseField;
-use stwo::core::poly::circle::CanonicCoset;
-use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
-use stwo::prover::backend::simd::SimdBackend;
-use stwo::prover::backend::{Col, Column};
-use stwo::prover::poly::circle::CircleEvaluation;
-use stwo::prover::poly::BitReversedOrder;
+
+
+use stwo_prover::core::{backend::{Col, Column, simd::SimdBackend}, fields::m31::BaseField, poly::{BitReversedOrder, circle::{CanonicCoset, CircleEvaluation}}, utils::bit_reverse_coset_to_circle_domain_order};
 
 use crate::poseidon_hash::{
     apply_external_round_matrix, apply_internal_round_matrix, EXTERNAL_ROUND_CONSTS,

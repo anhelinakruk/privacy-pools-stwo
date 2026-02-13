@@ -1,4 +1,4 @@
-use stwo::core::fields::m31::BaseField;
+use stwo_prover::core::fields::m31::BaseField;
 
 #[derive(Debug, Clone)]
 pub struct MerkleInputs {

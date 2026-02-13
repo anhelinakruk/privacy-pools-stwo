@@ -1,5 +1,4 @@
-use stwo::core::channel::Channel;
-use stwo::core::fields::m31::BaseField;
+use stwo_prover::core::{channel::Channel, fields::m31::BaseField};
 
 #[derive(Clone, Debug)]
 pub struct SchedulerStatement {

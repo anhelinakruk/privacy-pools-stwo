@@ -1,5 +1,4 @@
-use stwo::core::fields::m31::BaseField;
-use stwo::core::fields::qm31::SecureField;
+use stwo_prover::core::{channel::Channel, fields::{m31::BaseField, qm31::SecureField}};
 
 #[derive(Clone, Debug)]
 pub struct ChainInputs {
@@ -50,7 +49,7 @@ pub struct ChainStatement0 {
 }
 
 impl ChainStatement0 {
-    pub fn mix_into(&self, channel: &mut impl stwo::core::channel::Channel) {
+    pub fn mix_into(&self, channel: &mut impl Channel) {
         channel.mix_u64(self.log_size as u64);
     }
 }
@@ -61,7 +60,7 @@ pub struct ChainStatement1 {
 }
 
 impl ChainStatement1 {
-    pub fn mix_into(&self, channel: &mut impl stwo::core::channel::Channel) {
+    pub fn mix_into(&self, channel: &mut impl Channel) {
         channel.mix_felts(&[self.claimed_sum]);
     }
 }

@@ -1,14 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use stwo::core::channel::KeccakChannel;
-    use stwo::core::fields::m31::BaseField;
-    use stwo::core::pcs::{CommitmentSchemeVerifier, PcsConfig};
-    use stwo::core::poly::circle::CanonicCoset;
-    use stwo::core::vcs::keccak_merkle::KeccakMerkleChannel;
-    use stwo::prover::backend::simd::SimdBackend;
-    use stwo::prover::poly::circle::PolyOps;
-    use stwo::prover::{prove, CommitmentSchemeProver};
-    use stwo_constraint_framework::TraceLocationAllocator;
+    use stwo_polynomial::prove::prove;
+    use stwo_polynomial::verify::verify_with_queries;
+    use stwo_prover::constraint_framework::TraceLocationAllocator;
+    use stwo_prover::core::backend::simd::SimdBackend;
+    use stwo_prover::core::channel::Blake2sChannel;
+    use stwo_prover::core::fields::m31::BaseField;
+    use stwo_prover::core::pcs::{CommitmentSchemeProver, CommitmentSchemeVerifier, PcsConfig};
+    use stwo_prover::core::poly::circle::{CanonicCoset, PolyOps};
+    use stwo_prover::core::vcs::blake2_merkle::Blake2sMerkleChannel;
 
     use crate::merkle_membership::{
         gen_merkle_is_active_column, gen_merkle_is_first_column, gen_merkle_is_last_column,
@@ -89,9 +89,9 @@ mod tests {
                 .half_coset,
         );
 
-        let prover_channel = &mut KeccakChannel::default();
+        let prover_channel = &mut Blake2sChannel::default();
         let mut commitment_scheme =
-            CommitmentSchemeProver::<SimdBackend, KeccakMerkleChannel>::new(config, &twiddles);
+            CommitmentSchemeProver::<SimdBackend, Blake2sMerkleChannel>::new(config, &twiddles);
         // commitment_scheme.set_store_polynomials_coefficients();
 
         // Mix public statement into Fiat-Shamir channel BEFORE drawing relations
@@ -199,7 +199,7 @@ mod tests {
         );
         tree_builder.commit(prover_channel);
 
-        let mut tree_span_provider = TraceLocationAllocator::new_with_preprocessed_columns(&[
+        let mut tree_span_provider = TraceLocationAllocator::new_with_preproccessed_columns(&[
             is_active_column_id(LOG_SIZE, "deposit"),
             is_step_column_id(LOG_SIZE, "deposit"),
             is_last_column_id(LOG_SIZE, "deposit"),
@@ -272,7 +272,7 @@ mod tests {
             scheduler_claimed_sum, // Total claimed sum for scheduler component
         );
 
-        let proof = prove::<SimdBackend, KeccakMerkleChannel>(
+        let (proof, composition_poly) = prove::<SimdBackend, Blake2sMerkleChannel>(
             &[
                 &deposit_component,
                 &refund_component,
@@ -285,9 +285,9 @@ mod tests {
         .expect("Failed to generate proof");
         println!("Proof generated\n");
 
-        let verifier_channel = &mut KeccakChannel::default();
+        let verifier_channel = &mut Blake2sChannel::default();
         let mut commitment_scheme_verifier =
-            CommitmentSchemeVerifier::<KeccakMerkleChannel>::new(config);
+            CommitmentSchemeVerifier::<Blake2sMerkleChannel>::new(config);
 
         // Verifier receives PUBLIC INPUTS (outside the proof)
         // In this test, we use the same values as prover, but in real system
@@ -345,7 +345,7 @@ mod tests {
             verifier_channel,
         );
 
-        let mut tree_span_provider_v = TraceLocationAllocator::new_with_preprocessed_columns(&[
+        let mut tree_span_provider_v = TraceLocationAllocator::new_with_preproccessed_columns(&[
             is_active_column_id(LOG_SIZE, "deposit"),
             is_step_column_id(LOG_SIZE, "deposit"),
             is_last_column_id(LOG_SIZE, "deposit"),
@@ -418,7 +418,7 @@ mod tests {
             scheduler_claimed_sum,
         );
 
-        let result = stwo::core::verifier::verify(
+        let result = verify_with_queries(
             &[
                 &deposit_component_v,
                 &refund_component_v,
@@ -428,6 +428,7 @@ mod tests {
             verifier_channel,
             &mut commitment_scheme_verifier,
             proof,
+            composition_poly
         );
 
         match result {

@@ -1,18 +1,7 @@
 use num_traits::One;
-use stwo::core::fields::m31::BaseField;
-use stwo::core::fields::qm31::SecureField;
-use stwo::core::utils::bit_reverse_coset_to_circle_domain_order;
-use stwo::prover::backend::simd::m31::LOG_N_LANES;
-use stwo::prover::backend::simd::qm31::PackedSecureField;
-use stwo::prover::backend::simd::SimdBackend;
-use stwo::prover::backend::{Col, Column};
-use stwo::prover::poly::circle::CircleEvaluation;
-use stwo::prover::poly::BitReversedOrder;
-use stwo_constraint_framework::{LogupTraceGenerator, Relation};
-
-use super::trace::{ColumnVec, N_CHAIN_ROWS};
-
-use crate::relations::LeafRelation;
+use stwo_prover::{constraint_framework::{Relation, logup::LogupTraceGenerator}, core::{ColumnVec, backend::{Col, simd::{SimdBackend, m31::{LOG_N_LANES, PackedM31}, qm31::PackedSecureField}}, fields::{m31::BaseField, qm31::SecureField}, poly::{BitReversedOrder, circle::CircleEvaluation}, utils::bit_reverse_coset_to_circle_domain_order}};
+use crate::{poseidon_chain::N_CHAIN_ROWS, relations::LeafRelation};
+use stwo_prover::core::backend::Column;
 
 // Cairo-m style with security fix: final_state[0] is in the last round's step3, first element
 // Layout: 16 (initial) + 192 (first_half) + 266 (partial with matrix) + 192 (second_half) = 666 total
@@ -59,7 +48,7 @@ pub fn gen_poseidon_chain_interaction_trace(
 
             // Apply multiplicity (2 for deposit chain, 1 for refund chain)
             let multiplicity_base = BaseField::from_u32_unchecked(leaf_multiplicity);
-            let multiplicity_packed: stwo::prover::backend::simd::m31::PackedM31 =
+            let multiplicity_packed: PackedM31 =
                 multiplicity_base.into();
             let multiplicity_secure: PackedSecureField = multiplicity_packed.into();
             let numerator = is_last_secure * multiplicity_secure; // +multiplicity for last row

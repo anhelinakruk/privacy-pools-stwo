@@ -1,7 +1,6 @@
 use std::ops::{Add, AddAssign, Mul, Sub};
 
-use stwo::core::fields::m31::BaseField;
-use stwo::core::fields::FieldExpOps;
+use stwo_prover::core::fields::{FieldExpOps, m31::BaseField};
 
 pub const N_STATE: usize = 16;
 pub const N_PARTIAL_ROUNDS: usize = 14;
