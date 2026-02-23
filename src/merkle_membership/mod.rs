@@ -12,4 +12,4 @@ pub use eval::{
 };
 pub use logup::gen_merkle_membership_interaction_trace;
 pub use trace::gen_merkle_trace;
-pub use types::{MerkleInputs, MerkleOutputs};
+pub use types::{MerkleInputs, MerkleOutputs, MerkleStatement0, MerkleStatement1};

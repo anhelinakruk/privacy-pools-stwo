@@ -15,6 +15,16 @@ use super::types::MerkleInputs;
 
 pub type ColumnVec<T> = Vec<T>;
 
+// Cairo-m style with security fix: 3 intermediate values per round + matrix verification
+// 667 columns: 1 (index_bit) + 666 (Poseidon permutation)
+// Poseidon: 16 (initial) + 192 (first_half) + 266 (partial with matrix) + 192 (second_half) = 666
+const N_POSEIDON_COLUMNS: usize = N_STATE // initial_state
+    + (N_HALF_FULL_ROUNDS * 3 * N_STATE) // first_half_full_rounds
+    + (N_PARTIAL_ROUNDS * (3 + N_STATE)) // partial_rounds: 3 S-box steps + 16 after matrix
+    + (N_HALF_FULL_ROUNDS * 3 * N_STATE); // second_half_full_rounds
+
+pub const N_COLUMNS: usize = 1 + N_POSEIDON_COLUMNS;
+
 pub fn gen_merkle_trace(
     log_size: u32,
     inputs: &MerkleInputs,
@@ -43,18 +53,6 @@ pub fn gen_merkle_trace(
         depth,
         (1 << depth) - 1
     );
-
-    // Cairo-m style with security fix: 3 intermediate values per round + matrix verification
-    // 667 columns: 1 (index_bit) + 666 (Poseidon permutation)
-    // Poseidon: 16 (initial) + 192 (first_half) + 266 (partial with matrix) + 192 (second_half) = 666
-    // - Full rounds: squared_1, squared_2, final_after_sbox_and_matrix (3 * 16 elements)
-    // - Partial rounds: x^2(1), x^4(1), x^5(1), after_matrix(16) = 19 elements per round
-    // NOTE: current_node is encoded in initial_state[index_bit], no separate column needed
-    const N_POSEIDON_COLUMNS: usize = N_STATE // initial_state
-        + (N_HALF_FULL_ROUNDS * 3 * N_STATE) // first_half_full_rounds
-        + (N_PARTIAL_ROUNDS * (3 + N_STATE)) // partial_rounds: 3 S-box steps + 16 after matrix
-        + (N_HALF_FULL_ROUNDS * 3 * N_STATE); // second_half_full_rounds
-    const N_COLUMNS: usize = 1 + N_POSEIDON_COLUMNS;
 
     let mut trace = (0..N_COLUMNS)
         .map(|_| Col::<SimdBackend, BaseField>::zeros(n_rows))

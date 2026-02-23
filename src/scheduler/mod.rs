@@ -1,6 +1,7 @@
 pub mod eval;
 pub mod logup;
 pub mod trace;
+pub mod tests;
 pub mod types;
 
 pub use eval::{
@@ -9,4 +10,4 @@ pub use eval::{
 };
 pub use logup::gen_scheduler_interaction_trace;
 pub use trace::gen_scheduler_trace;
-pub use types::SchedulerStatement;
+pub use types::{SchedulerStatement, SchedulerStatement0, SchedulerStatement1, N_COLUMNS};

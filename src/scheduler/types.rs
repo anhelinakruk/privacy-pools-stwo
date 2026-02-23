@@ -1,5 +1,10 @@
 use stwo::core::channel::Channel;
 use stwo::core::fields::m31::BaseField;
+use stwo::core::fields::qm31::SecureField;
+use stwo::core::pcs::TreeVec;
+
+// Number of base trace columns (6 columns: root, expected_root, commitment_amount, refund_amount, deposit_leaf, refund_leaf)
+pub const N_COLUMNS: usize = 6;
 
 #[derive(Clone, Debug)]
 pub struct SchedulerStatement {
@@ -44,4 +49,28 @@ impl SchedulerStatement {
         ]);
         channel.mix_u64(self.depth as u64);
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct SchedulerStatement0 {
+    pub log_size: u32,
+}
+
+impl SchedulerStatement0 {
+    pub fn mix_into(&self, channel: &mut impl Channel) {
+        channel.mix_u64(self.log_size as u64);
+    }
+
+    pub fn log_sizes(&self) -> TreeVec<Vec<u32>> {
+        TreeVec(vec![
+            vec![self.log_size; 1],  // Tree 0: 1 preprocessed column (is_first)
+            vec![self.log_size; N_COLUMNS], // Tree 1: 6 base trace columns
+            vec![self.log_size; 12], // Tree 2: 12 interaction trace columns (3 logup cols × 4)
+        ])
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SchedulerStatement1 {
+    pub claimed_sum: SecureField,
 }

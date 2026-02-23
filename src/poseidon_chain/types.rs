@@ -1,5 +1,8 @@
 use stwo::core::fields::m31::BaseField;
 use stwo::core::fields::qm31::SecureField;
+use stwo::core::pcs::TreeVec;
+
+use super::trace::N_COLUMNS;
 
 #[derive(Clone, Debug)]
 pub struct ChainInputs {
@@ -52,6 +55,14 @@ pub struct ChainStatement0 {
 impl ChainStatement0 {
     pub fn mix_into(&self, channel: &mut impl stwo::core::channel::Channel) {
         channel.mix_u64(self.log_size as u64);
+    }
+
+    pub fn log_sizes(&self) -> TreeVec<Vec<u32>> {
+        TreeVec(vec![
+            vec![self.log_size; 3],
+            vec![self.log_size; N_COLUMNS],
+            vec![self.log_size; 4],
+        ])
     }
 }
 

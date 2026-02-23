@@ -2,7 +2,7 @@ use stwo::core::fields::m31::BaseField;
 use stwo::core::fields::qm31::SecureField;
 use stwo_constraint_framework::preprocessed_columns::PreProcessedColumnId;
 use stwo_constraint_framework::{
-    EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry, ORIGINAL_TRACE_IDX,
+    EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry,
 };
 
 use crate::relations::{LeafRelation, RefundLeafRelation, RootRelation};
@@ -31,12 +31,12 @@ impl FrameworkEval for PrivacyPoolSchedulerEval {
     fn evaluate<E: EvalAtRow>(&self, mut eval: E) -> E {
         let is_first = eval.get_preprocessed_column(self.is_first_id.clone());
 
-        let computed_root = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-        let expected_root = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-        let commitment_amount = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-        let refund_amount = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-        let deposit_leaf = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
-        let refund_leaf = eval.next_interaction_mask(ORIGINAL_TRACE_IDX, [0])[0].clone();
+        let computed_root = eval.next_trace_mask();
+        let expected_root = eval.next_trace_mask();
+        let commitment_amount = eval.next_trace_mask();
+        let refund_amount = eval.next_trace_mask();
+        let deposit_leaf = eval.next_trace_mask();
+        let refund_leaf = eval.next_trace_mask();
 
         eval.add_constraint(is_first.clone() * (computed_root.clone() - expected_root));
 

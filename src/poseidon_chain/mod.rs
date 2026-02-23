@@ -2,6 +2,7 @@ pub mod eval;
 pub mod logup;
 pub mod trace;
 pub mod types;
+pub mod prove_verify;
 
 #[cfg(test)]
 mod tests;
@@ -12,5 +13,6 @@ pub use eval::{
     PoseidonChainEval,
 };
 pub use logup::gen_poseidon_chain_interaction_trace;
+pub use prove_verify::{prove_poseidon_chain, verify_poseidon_chain, PoseidonChainProofData};
 pub use trace::{fill_poseidon_row, gen_poseidon_chain_trace, ColumnVec, N_CHAIN_ROWS, N_COLUMNS};
 pub use types::{ChainInputs, ChainOutputs, ChainStatement0, ChainStatement1};
